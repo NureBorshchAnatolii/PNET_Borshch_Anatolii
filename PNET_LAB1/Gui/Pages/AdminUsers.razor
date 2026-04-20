@@ -1,0 +1,238 @@
+﻿@page "/admin/users"
+@using Gui.Shared
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject HttpClient Http
+
+<PageTitle>Manage Users</PageTitle>
+
+<div class="page-header">
+    <h2>Users</h2>
+</div>
+
+<LoadingSpinner Show="_loading" />
+<AlertMessage Message="@_error" Type="error" />
+<AlertMessage Message="@_success" Type="success" />
+
+@if (!_loading)
+{
+    <div class="card" style="padding:0; overflow:hidden">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Joined</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var user in _users)
+                {
+                    <tr>
+                        <td style="font-weight:500">@user.FirstName @user.LastName</td>
+                        <td style="color:#6c757d">@user.Email</td>
+                        <td>
+                            <span class="badge @(user.Role == "Admin" ? "badge-blue" : "badge-gray")">
+                                @user.Role
+                            </span>
+                        </td>
+                        <td style="color:#6c757d; font-size:.85rem">
+                            @user.CreatedAt.ToString("MMM d, yyyy")
+                        </td>
+                        <td>
+                            <div class="row-actions">
+                                <select class="role-select"
+                                        value="@user.Role"
+                                        @onchange="e => ChangeRole(user.Id, e.Value?.ToString() ?? string.Empty)">
+                                    <option value="User">User</option>
+                                    <option value="Admin">Admin</option>
+                                </select>
+                                <button class="btn btn-danger btn-sm"
+                                        @onclick="() => ConfirmDelete(user)">
+                                    Delete
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_deleteTarget is not null)
+{
+    <div class="modal-overlay" @onclick="CancelDelete">
+        <div class="modal" @onclick:stopPropagation>
+            <h3>Delete user?</h3>
+            <p>
+                Are you sure you want to delete
+                <strong>@_deleteTarget.FirstName @_deleteTarget.LastName</strong>?
+                This cannot be undone.
+            </p>
+            <AlertMessage Message="@_deleteError" Type="error" />
+            <div class="modal-actions">
+                <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                <button class="btn btn-danger" @onclick="DeleteConfirmed"
+                        disabled="@_deleting">
+                    @(_deleting ? "Deleting..." : "Delete")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .row-actions {
+        display: flex;
+        gap: .4rem;
+        align-items: center;
+        justify-content: flex-end;
+    }
+
+    .role-select {
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        padding: .3rem .5rem;
+        font-size: .82rem;
+        outline: none;
+        background: #fff;
+        cursor: pointer;
+    }
+
+    .role-select:focus { border-color: #0d6efd; }
+
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+    }
+
+    .modal {
+        background: #fff;
+        border-radius: 8px;
+        padding: 1.75rem;
+        width: 100%;
+        max-width: 420px;
+    }
+
+    .modal h3 { margin: 0 0 .5rem; }
+    .modal p { color: #6c757d; font-size: .9rem; margin: 0 0 1.25rem; }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: .5rem;
+    }
+</style>
+
+@code {
+    private List<UserResponse> _users = new();
+    private bool _loading = true;
+    private string? _error;
+    private string? _success;
+    private UserResponse? _deleteTarget;
+    private bool _deleting;
+    private string? _deleteError;
+
+    protected override async Task OnInitializedAsync() => await LoadUsers();
+
+    private async Task LoadUsers()
+    {
+        _loading = true;
+        try
+        {
+            _users = await Http.GetFromJsonAsync<List<UserResponse>>(
+                "/api/admin/users") ?? new();
+        }
+        catch
+        {
+            _error = "Failed to load users.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ChangeRole(Guid userId, string role)
+    {
+        _error = null;
+        _success = null;
+
+        var roleValue = role == "Admin" ? 1 : 0;
+
+        try
+        {
+            var response = await Http.PatchAsJsonAsync(
+                $"/api/admin/users/{userId}/role", new { role = roleValue });
+
+            if (response.IsSuccessStatusCode)
+            {
+                _success = "Role updated successfully.";
+                await LoadUsers();
+            }
+            else
+            {
+                _error = "Failed to update role.";
+            }
+        }
+        catch
+        {
+            _error = "Something went wrong.";
+        }
+    }
+
+    private void ConfirmDelete(UserResponse user)
+    {
+        _deleteTarget = user;
+        _deleteError = null;
+    }
+
+    private void CancelDelete()
+    {
+        _deleteTarget = null;
+        _deleteError = null;
+    }
+
+    private async Task DeleteConfirmed()
+    {
+        if (_deleteTarget is null) return;
+        _deleting = true;
+        _deleteError = null;
+
+        try
+        {
+            var response = await Http.DeleteAsync(
+                $"/api/admin/users/{_deleteTarget.Id}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                _deleteTarget = null;
+                _success = "User deleted.";
+                await LoadUsers();
+            }
+            else
+            {
+                _deleteError = "Failed to delete user.";
+            }
+        }
+        catch
+        {
+            _deleteError = "Something went wrong.";
+        }
+        finally
+        {
+            _deleting = false;
+        }
+    }
+
+    record UserResponse(Guid Id, string FirstName, string LastName,
+        string Email, string Role, DateTime CreatedAt);
+}

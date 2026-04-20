@@ -1,0 +1,262 @@
+﻿@page "/admin/categories"
+@using Gui.Shared
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject HttpClient Http
+
+<PageTitle>Manage Categories</PageTitle>
+
+<div class="page-header">
+    <h2>Categories</h2>
+</div>
+
+<AlertMessage Message="@_error" Type="error" />
+<AlertMessage Message="@_success" Type="success" />
+
+<div class="card create-form">
+    <h4 style="margin: 0 0 1rem">New Category</h4>
+    <div class="create-row">
+        <input placeholder="Category name"
+               @bind="_newName"
+               @bind:event="oninput"
+               @onkeydown="OnKeyDown" />
+        <button class="btn btn-primary" @onclick="Create" disabled="@_creating">
+            @(_creating ? "Adding..." : "Add")
+        </button>
+    </div>
+</div>
+
+<LoadingSpinner Show="_loading" />
+
+@if (!_loading)
+{
+    @if (_categories.Any())
+    {
+        <div class="card" style="padding:0; overflow:hidden">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Tests</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var cat in _categories)
+                    {
+                        <tr>
+                            <td style="font-weight:500">@cat.Name</td>
+                            <td>
+                                <span class="badge badge-gray">@cat.TestCount tests</span>
+                            </td>
+                            <td style="text-align:right">
+                                <button class="btn btn-danger btn-sm"
+                                        @onclick="() => ConfirmDelete(cat)"
+                                        disabled="@(cat.TestCount > 0)">
+                                    @(cat.TestCount > 0 ? "In use" : "Delete")
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <p>No categories yet. Create one above.</p>
+        </div>
+    }
+}
+
+@if (_deleteTarget is not null)
+{
+    <div class="modal-overlay" @onclick="CancelDelete">
+        <div class="modal" @onclick:stopPropagation>
+            <h3>Delete category?</h3>
+            <p>
+                Are you sure you want to delete
+                <strong>@_deleteTarget.Name</strong>?
+            </p>
+            <AlertMessage Message="@_deleteError" Type="error" />
+            <div class="modal-actions">
+                <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                <button class="btn btn-danger" @onclick="DeleteConfirmed"
+                        disabled="@_deleting">
+                    @(_deleting ? "Deleting..." : "Delete")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .create-form { margin-bottom: 1.25rem; }
+
+    .create-row {
+        display: flex;
+        gap: .75rem;
+    }
+
+    .create-row input {
+        flex: 1;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        padding: .5rem .75rem;
+        font-size: .95rem;
+        outline: none;
+        transition: border-color .15s;
+    }
+
+    .create-row input:focus { border-color: #0d6efd; }
+
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+    }
+
+    .modal {
+        background: #fff;
+        border-radius: 8px;
+        padding: 1.75rem;
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .modal h3 { margin: 0 0 .5rem; }
+    .modal p { color: #6c757d; font-size: .9rem; margin: 0 0 1.25rem; }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: .5rem;
+    }
+</style>
+
+@code {
+    private List<CategoryResponse> _categories = new();
+    private bool _loading = true;
+    private bool _creating;
+    private string _newName = string.Empty;
+    private string? _error;
+    private string? _success;
+    private CategoryResponse? _deleteTarget;
+    private bool _deleting;
+    private string? _deleteError;
+
+    protected override async Task OnInitializedAsync() => await LoadCategories();
+
+    private async Task LoadCategories()
+    {
+        _loading = true;
+        try
+        {
+            _categories = await Http.GetFromJsonAsync<List<CategoryResponse>>(
+                "/api/categories") ?? new();
+        }
+        catch
+        {
+            _error = "Failed to load categories.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Create();
+    }
+
+    private async Task Create()
+    {
+        _error = null;
+        _success = null;
+
+        if (string.IsNullOrWhiteSpace(_newName))
+        {
+            _error = "Category name cannot be empty.";
+            return;
+        }
+
+        _creating = true;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync(
+                "/api/categories", new { name = _newName.Trim() });
+
+            if (response.IsSuccessStatusCode)
+            {
+                _newName = string.Empty;
+                _success = "Category created.";
+                await LoadCategories();
+            }
+            else
+            {
+                _error = "Failed to create category.";
+            }
+        }
+        catch
+        {
+            _error = "Something went wrong.";
+        }
+        finally
+        {
+            _creating = false;
+        }
+    }
+
+    private void ConfirmDelete(CategoryResponse cat)
+    {
+        _deleteTarget = cat;
+        _deleteError = null;
+    }
+
+    private void CancelDelete()
+    {
+        _deleteTarget = null;
+        _deleteError = null;
+    }
+
+    private async Task DeleteConfirmed()
+    {
+        if (_deleteTarget is null) return;
+        _deleting = true;
+        _deleteError = null;
+
+        try
+        {
+            var response = await Http.DeleteAsync(
+                $"/api/categories/{_deleteTarget.Id}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                _deleteTarget = null;
+                _success = "Category deleted.";
+                await LoadCategories();
+            }
+            else
+            {
+                _deleteError = "Cannot delete this category.";
+            }
+        }
+        catch
+        {
+            _deleteError = "Something went wrong.";
+        }
+        finally
+        {
+            _deleting = false;
+        }
+    }
+
+    record CategoryResponse(Guid Id, string Name, int TestCount);
+}

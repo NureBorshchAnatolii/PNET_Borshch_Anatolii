@@ -1,0 +1,203 @@
+﻿@page "/tests/my"
+@using Gui.Shared
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>My Tests</PageTitle>
+
+<div class="page-header">
+    <h2>My Tests</h2>
+    <a href="/tests/create" class="btn btn-primary">➕ Create Test</a>
+</div>
+
+<LoadingSpinner Show="_loading" />
+<AlertMessage Message="@_error" Type="error" />
+
+@if (!_loading)
+{
+    @if (_tests.Any())
+    {
+        <div class="card" style="padding:0; overflow:hidden">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Category</th>
+                        <th>Questions</th>
+                        <th>Passing</th>
+                        <th>Created</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var test in _tests)
+                    {
+                        <tr>
+                            <td>
+                                <a href="/tests/@test.Id" class="test-link">@test.Title</a>
+                            </td>
+                            <td><span class="badge badge-blue">@test.Category</span></td>
+                            <td>@test.QuestionCount</td>
+                            <td>@test.PassingScore%</td>
+                            <td style="color:#6c757d; font-size:.85rem">
+                                @test.CreatedAt.ToString("MMM d, yyyy")
+                            </td>
+                            <td>
+                                <div class="row-actions">
+                                    <a href="/tests/edit/@test.Id" class="btn btn-secondary btn-sm">Edit</a>
+                                    <button class="btn btn-danger btn-sm"
+                                            @onclick="() => ConfirmDelete(test)">
+                                        Delete
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <p>You haven't created any tests yet.</p>
+            <a href="/tests/create" class="btn btn-primary">Create your first test</a>
+        </div>
+    }
+}
+
+@if (_deleteTarget is not null)
+{
+    <div class="modal-overlay" @onclick="CancelDelete">
+        <div class="modal" @onclick:stopPropagation>
+            <h3>Delete test?</h3>
+            <p>Are you sure you want to delete <strong>@_deleteTarget.Title</strong>? This cannot be undone.</p>
+            <AlertMessage Message="@_deleteError" Type="error" />
+            <div class="modal-actions">
+                <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                <button class="btn btn-danger" @onclick="DeleteConfirmed" disabled="@_deleting">
+                    @(_deleting ? "Deleting..." : "Delete")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .test-link {
+        color: #212529;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .test-link:hover { color: #0d6efd; }
+
+    .row-actions {
+        display: flex;
+        gap: .4rem;
+        justify-content: flex-end;
+    }
+
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+    }
+
+    .modal {
+        background: #fff;
+        border-radius: 8px;
+        padding: 1.75rem;
+        width: 100%;
+        max-width: 420px;
+    }
+
+    .modal h3 { margin: 0 0 .5rem; }
+    .modal p { color: #6c757d; font-size: .9rem; margin: 0 0 1.25rem; }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: .5rem;
+    }
+</style>
+
+@code {
+    private List<TestResponse> _tests = new();
+    private bool _loading = true;
+    private string? _error;
+    private TestResponse? _deleteTarget;
+    private bool _deleting;
+    private string? _deleteError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTests();
+    }
+
+    private async Task LoadTests()
+    {
+        _loading = true;
+        try
+        {
+            _tests = await Http.GetFromJsonAsync<List<TestResponse>>("/api/tests/my") ?? new();
+        }
+        catch
+        {
+            _error = "Failed to load tests.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ConfirmDelete(TestResponse test)
+    {
+        _deleteTarget = test;
+        _deleteError = null;
+    }
+
+    private void CancelDelete()
+    {
+        _deleteTarget = null;
+        _deleteError = null;
+    }
+
+    private async Task DeleteConfirmed()
+    {
+        if (_deleteTarget is null) return;
+        _deleting = true;
+        _deleteError = null;
+
+        try
+        {
+            var response = await Http.DeleteAsync($"/api/tests/{_deleteTarget.Id}");
+            if (response.IsSuccessStatusCode)
+            {
+                _deleteTarget = null;
+                await LoadTests();
+            }
+            else
+            {
+                _deleteError = "Failed to delete test.";
+            }
+        }
+        catch
+        {
+            _deleteError = "Something went wrong.";
+        }
+        finally
+        {
+            _deleting = false;
+        }
+    }
+
+    record TestResponse(Guid Id, string Title, string? Description, string Category,
+        int? TimeLimitMinutes, int? MaxAttempts, decimal PassingScore,
+        int QuestionCount, DateTime CreatedAt);
+}

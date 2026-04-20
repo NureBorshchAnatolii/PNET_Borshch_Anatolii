@@ -1,0 +1,215 @@
+﻿@page "/tests/{Id:guid}"
+@using Gui.Shared
+@using Microsoft.AspNetCore.Components.Authorization
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>@(_test?.Title ?? "Test")</PageTitle>
+
+<LoadingSpinner Show="_loading" />
+<AlertMessage Message="@_error" Type="error" />
+
+@if (_test is not null)
+{
+    <div class="page-header">
+        <div>
+            <a href="/tests" class="back-link">← Back to tests</a>
+            <h2>@_test.Title</h2>
+        </div>
+        <AuthorizeView>
+            <Authorized>
+                <button class="btn btn-primary" @onclick="StartAttempt" disabled="@_starting">
+                    @(_starting ? "Starting..." : "▶ Start Test")
+                </button>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+
+    <div class="detail-layout">
+        <div class="detail-main">
+            @if (!string.IsNullOrEmpty(_test.Description))
+            {
+                <div class="card">
+                    <p style="margin:0; color:#495057">@_test.Description</p>
+                </div>
+            }
+
+            <div class="card">
+                <h4 style="margin:0 0 1rem">Questions (@_test.Questions.Count)</h4>
+                @foreach (var (q, i) in _test.Questions.Select((q, i) => (q, i)))
+                {
+                    <div class="question-preview">
+                        <div class="question-preview-header">
+                            <span class="question-num">@(i + 1)</span>
+                            <span class="question-text">@q.Text</span>
+                            <span class="badge badge-gray">@q.QuestionType</span>
+                            <span class="badge badge-blue">@q.Points pts</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="detail-side">
+            <div class="card">
+                <h4 style="margin:0 0 1rem">Details</h4>
+                <div class="detail-row">
+                    <span>Category</span>
+                    <strong>@_test.Category</strong>
+                </div>
+                <div class="detail-row">
+                    <span>Questions</span>
+                    <strong>@_test.Questions.Count</strong>
+                </div>
+                <div class="detail-row">
+                    <span>Passing score</span>
+                    <strong>@_test.PassingScore%</strong>
+                </div>
+                <div class="detail-row">
+                    <span>Time limit</span>
+                    <strong>@(_test.TimeLimitMinutes.HasValue ? $"{_test.TimeLimitMinutes} min" : "No limit")</strong>
+                </div>
+                <div class="detail-row">
+                    <span>Max attempts</span>
+                    <strong>@(_test.MaxAttempts.HasValue ? _test.MaxAttempts.ToString() : "Unlimited")</strong>
+                </div>
+                <div class="detail-row">
+                    <span>Shuffle</span>
+                    <strong>@(_test.ShuffleQuestions ? "Yes" : "No")</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .back-link {
+        font-size: .85rem;
+        color: #6c757d;
+        text-decoration: none;
+        display: block;
+        margin-bottom: .35rem;
+    }
+
+    .back-link:hover { color: #0d6efd; }
+
+    .detail-layout {
+        display: grid;
+        grid-template-columns: 1fr 280px;
+        gap: 1.25rem;
+        align-items: start;
+    }
+
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: .5rem 0;
+        border-bottom: 1px solid #f1f3f5;
+        font-size: .9rem;
+        color: #6c757d;
+    }
+
+    .detail-row:last-child { border-bottom: none; }
+    .detail-row strong { color: #212529; }
+
+    .question-preview {
+        padding: .65rem 0;
+        border-bottom: 1px solid #f1f3f5;
+    }
+
+    .question-preview:last-child { border-bottom: none; }
+
+    .question-preview-header {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        flex-wrap: wrap;
+    }
+
+    .question-num {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #e7f1ff;
+        color: #0d6efd;
+        font-size: .75rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .question-text {
+        flex: 1;
+        font-size: .9rem;
+        color: #212529;
+    }
+</style>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private TestDetailResponse? _test;
+    private bool _loading = true;
+    private bool _starting;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _test = await Http.GetFromJsonAsync<TestDetailResponse>($"/api/tests/{Id}");
+        }
+        catch
+        {
+            _error = "Failed to load test.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task StartAttempt()
+    {
+        _starting = true;
+        _error = null;
+
+        try
+        {
+            var response = await Http.PostAsync($"/api/attempts/start/{Id}", null);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<StartAttemptResponse>();
+                Nav.NavigateTo($"/attempt/{result!.AttemptId}");
+            }
+            else
+            {
+                var err = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                _error = err?.Message ?? "Could not start attempt.";
+            }
+        }
+        catch
+        {
+            _error = "Something went wrong.";
+        }
+        finally
+        {
+            _starting = false;
+        }
+    }
+
+    record TestDetailResponse(Guid Id, string Title, string? Description, string Category,
+        int? TimeLimitMinutes, int? MaxAttempts, bool ShuffleQuestions,
+        bool ShowCorrectAnswers, decimal PassingScore, DateTime CreatedAt,
+        Guid CreatedByUserId, List<QuestionResponse> Questions);
+
+    record QuestionResponse(Guid Id, string Text, string QuestionType,
+        decimal Points, int Order, string? Explanation, List<AnswerResponse> Answers);
+
+    record AnswerResponse(Guid Id, string Text, int Order, bool? IsCorrect);
+    record StartAttemptResponse(Guid AttemptId);
+    record ErrorResponse(string Message);
+}

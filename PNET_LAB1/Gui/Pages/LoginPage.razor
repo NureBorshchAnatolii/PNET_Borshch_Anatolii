@@ -1,0 +1,223 @@
+﻿@page "/login"
+@using System.ComponentModel.DataAnnotations
+@using Gui.Auth
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject AppAuthStateProvider AuthProvider
+
+<PageTitle>Login</PageTitle>
+
+<div class="auth-wrapper">
+    <div class="auth-card">
+
+        <h2>Sign in</h2>
+        <p class="subtitle">Enter your credentials to continue</p>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="alert-error">@_errorMessage</div>
+        }
+
+        <EditForm Model="_model" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+
+            <div class="field">
+                <label>Email</label>
+                <InputText @bind-Value="_model.Email" placeholder="you@example.com" type="email" />
+                <ValidationMessage For="@(() => _model.Email)" />
+            </div>
+
+            <div class="field">
+                <label>Password</label>
+                <InputText @bind-Value="_model.Password" placeholder="••••••••" type="password" />
+                <ValidationMessage For="@(() => _model.Password)" />
+            </div>
+
+            <button type="submit" disabled="@_isLoading">
+                @(_isLoading ? "Signing in..." : "Sign in")
+            </button>
+        </EditForm>
+
+        <p class="footer-link">
+            Don't have an account? <a href="/register">Register</a>
+        </p>
+
+    </div>
+</div>
+
+<style>
+    .auth-wrapper {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f8f9fa;
+    }
+
+    .auth-card {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 2rem;
+        width: 100%;
+        max-width: 380px;
+    }
+
+    .auth-card h2 {
+        margin: 0 0 .25rem;
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #212529;
+    }
+
+    .subtitle {
+        color: #6c757d;
+        font-size: .9rem;
+        margin: 0 0 1.5rem;
+    }
+
+    .alert-error {
+        background: #fff5f5;
+        border: 1px solid #f5c2c7;
+        color: #842029;
+        border-radius: 6px;
+        padding: .6rem .9rem;
+        font-size: .875rem;
+        margin-bottom: 1rem;
+    }
+
+    .field {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 1rem;
+    }
+
+    .field label {
+        font-size: .875rem;
+        font-weight: 500;
+        color: #344054;
+        margin-bottom: .35rem;
+    }
+
+    .field input {
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        padding: .5rem .75rem;
+        font-size: .95rem;
+        outline: none;
+        transition: border-color .15s;
+    }
+
+    .field input:focus {
+        border-color: #0d6efd;
+    }
+
+    .field .validation-message {
+        color: #dc3545;
+        font-size: .8rem;
+        margin-top: .25rem;
+    }
+
+    button[type="submit"] {
+        width: 100%;
+        margin-top: .5rem;
+        padding: .55rem;
+        background: #0d6efd;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: .95rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background .15s;
+    }
+
+    button[type="submit"]:hover:not(:disabled) {
+        background: #0b5ed7;
+    }
+
+    button[type="submit"]:disabled {
+        opacity: .65;
+        cursor: not-allowed;
+    }
+
+    .footer-link {
+        text-align: center;
+        font-size: .875rem;
+        color: #6c757d;
+        margin: 1.25rem 0 0;
+    }
+
+    .footer-link a {
+        color: #0d6efd;
+        text-decoration: none;
+    }
+
+    .footer-link a:hover {
+        text-decoration: underline;
+    }
+</style>
+
+@code {
+    private readonly LoginModel _model = new();
+    private string? _errorMessage;
+    private bool _isLoading;
+
+    public record AuthResponse(
+        string Token,
+        string Email,
+        string FirstName,
+        string LastName,
+        string Role,
+        DateTime ExpiresAt
+    );
+    
+    private async Task HandleLogin()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("/api/auth/login", new
+            {
+                email = _model.Email,
+                password = _model.Password
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
+                    await AuthProvider.MarkUserAsAuthenticatedAsync(result!.Token);
+                    Nav.NavigateTo("/");
+                }
+                Nav.NavigateTo("/");
+            }
+            else
+            {
+                _errorMessage = "Invalid email or password.";
+            }
+        }
+        catch
+        {
+            _errorMessage = "Something went wrong. Please try again.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private class LoginModel
+    {
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Enter a valid email")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Password is required")]
+        [MinLength(6, ErrorMessage = "Minimum 6 characters")]
+        public string Password { get; set; } = string.Empty;
+    }
+}

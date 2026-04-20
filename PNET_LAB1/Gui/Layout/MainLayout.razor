@@ -1,0 +1,27 @@
+﻿@using Gui.Auth
+@inherits LayoutComponentBase
+@inject AppAuthStateProvider AuthProvider
+@inject NavigationManager Nav
+
+<div class="app-layout">
+    <NavMenu />
+    <main class="main-content">
+        @Body
+    </main>
+</div>
+
+<style>
+    .app-layout {
+        display: flex;
+        min-height: 100vh;
+        background: #f8f9fa;
+    }
+
+    .main-content {
+        flex: 1;
+        padding: 2rem;
+        max-width: 1100px;
+        margin: 0 auto;
+        width: 100%;
+    }
+</style>

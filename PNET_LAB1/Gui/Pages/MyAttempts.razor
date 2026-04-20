@@ -1,0 +1,117 @@
+﻿@page "/attempts/my"
+@using Gui.Shared
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>My Attempts</PageTitle>
+
+<div class="page-header">
+    <h2>My Attempts</h2>
+</div>
+
+<LoadingSpinner Show="_loading" />
+<AlertMessage Message="@_error" Type="error" />
+
+@if (!_loading)
+{
+    @if (_attempts.Any())
+    {
+        <div class="card" style="padding:0; overflow:hidden">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Test</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                        <th>Attempt #</th>
+                        <th>Date</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in _attempts)
+                    {
+                        <tr>
+                            <td style="font-weight:500">@a.Test?.Title</td>
+                            <td>
+                                @if (a.Score.HasValue)
+                                {
+                                    <span class="@(a.Score >= a.Test?.PassingScore
+                                        ? "badge badge-green" : "badge badge-red")">
+                                        @Math.Round(a.Score.Value)%
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-gray">—</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge @GetStatusBadge(a.Status)">@a.Status</span>
+                            </td>
+                            <td style="color:#6c757d">#@a.AttemptNumber</td>
+                            <td style="color:#6c757d; font-size:.85rem">
+                                @a.StartedAt.ToString("MMM d, yyyy HH:mm")
+                            </td>
+                            <td>
+                                @if (a.Status == "Completed")
+                                {
+                                    var resultUrl = $"/attempt/{a.Id}/result";
+                                    <button class="btn btn-secondary btn-sm"
+                                            @onclick="() => Nav.NavigateTo(resultUrl)">
+                                        View Result
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <p>You haven't taken any tests yet.</p>
+            <a href="/tests" class="btn btn-primary">Browse Tests</a>
+        </div>
+    }
+}
+
+@code {
+    private List<AttemptResponse> _attempts = new();
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _attempts = await Http.GetFromJsonAsync<List<AttemptResponse>>(
+                "/api/attempts/my") ?? new();
+        }
+        catch
+        {
+            _error = "Failed to load attempts.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string GetStatusBadge(string status) => status switch
+    {
+        "Completed" => "badge-green",
+        "InProgress" => "badge-blue",
+        "Abandoned" => "badge-gray",
+        "TimedOut" => "badge-red",
+        _ => "badge-gray"
+    };
+
+    record AttemptResponse(Guid Id, Guid TestId, DateTime StartedAt,
+        DateTime? FinishedAt, string Status, decimal? Score,
+        int AttemptNumber, TestSummary? Test);
+
+    record TestSummary(Guid Id, string Title, decimal PassingScore);
+}

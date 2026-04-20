@@ -1,0 +1,219 @@
+﻿@page "/attempt/{AttemptId:guid}/result"
+@using Gui.Shared
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>Result</PageTitle>
+
+<LoadingSpinner Show="_loading" />
+<AlertMessage Message="@_error" Type="error" />
+
+@if (_result is not null)
+{
+    <div class="result-layout">
+        <!-- Score card -->
+        <div class="card score-card">
+            <div class="score-circle @(_result.Passed ? "score-pass" : "score-fail")">
+                <span class="score-number">@Math.Round(_result.Score)%</span>
+                <span class="score-label">@(_result.Passed ? "PASSED" : "FAILED")</span>
+            </div>
+
+            <div class="score-stats">
+                <div class="stat">
+                    <span class="stat-value">@_result.CorrectAnswers / @_result.TotalQuestions</span>
+                    <span class="stat-label">Correct</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">@_result.PassingScore%</span>
+                    <span class="stat-label">Required</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">@FormatDuration(_result.StartedAt, _result.FinishedAt)</span>
+                    <span class="stat-label">Duration</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value @(_result.Passed ? "text-green" : "text-red")">
+                        @_result.Status
+                    </span>
+                    <span class="stat-label">Status</span>
+                </div>
+            </div>
+        </div>
+
+        @if (_result.QuestionResults is not null)
+        {
+            <div class="card">
+                <h4 style="margin: 0 0 1rem">Question Breakdown</h4>
+                @foreach (var (q, i) in _result.QuestionResults.Select((q, i) => (q, i)))
+                {
+                    <div class="result-question @(q.IsCorrect ? "result-correct" : "result-wrong")">
+                        <div class="result-question-header">
+                            <span class="result-icon">@(q.IsCorrect ? "✓" : "✗")</span>
+                            <span class="result-question-text">@q.QuestionText</span>
+                            <span class="result-points">
+                                @q.PointsEarned / @q.Points pts
+                            </span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(q.Explanation))
+                        {
+                            <p class="result-explanation">@q.Explanation</p>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="card">
+                <p style="color:#6c757d; margin:0; font-size:.9rem">
+                    Correct answers are not shown for this test.
+                </p>
+            </div>
+        }
+
+        <!-- Actions -->
+        <div class="result-actions">
+            <button class="btn btn-secondary" @onclick='() => Nav.NavigateTo("/tests")'>
+                Browse Tests
+            </button>
+            <button class="btn btn-secondary" @onclick='() => Nav.NavigateTo("/attempts/my")'>
+                My Attempts
+            </button>
+            <button class="btn btn-primary"
+                    @onclick='() => Nav.NavigateTo($"/tests/{_result.TestId}")'>
+                Try Again
+            </button>
+        </div>
+    </div>
+}
+
+<style>
+    .result-layout { max-width: 680px; margin: 0 auto; }
+
+    .score-card {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .score-circle {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        border: 6px solid;
+    }
+
+    .score-number { font-size: 1.6rem; font-weight: 700; line-height: 1; }
+    .score-label { font-size: .65rem; font-weight: 700; letter-spacing: .08em; margin-top: .2rem; }
+
+    .score-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        flex: 1;
+    }
+
+    .stat {
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+    }
+
+    .stat-value { font-size: 1.1rem; font-weight: 600; color: #212529; }
+    .stat-label { font-size: .78rem; color: #6c757d; }
+
+    .result-question {
+        padding: .85rem;
+        border-radius: 8px;
+        margin-bottom: .6rem;
+        border-left: 4px solid;
+    }
+
+    .result-question-header {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+    }
+
+    .result-icon {
+        font-weight: 700;
+        font-size: .9rem;
+        flex-shrink: 0;
+    }
+
+    .result-correct .result-icon { color: #1a5c2a; }
+    .result-wrong .result-icon { color: #842029; }
+
+    .result-question-text {
+        flex: 1;
+        font-size: .9rem;
+        color: #212529;
+    }
+
+    .result-points {
+        font-size: .8rem;
+        color: #6c757d;
+        flex-shrink: 0;
+    }
+
+    .result-explanation {
+        margin: .5rem 0 0 1.4rem;
+        font-size: .82rem;
+        color: #495057;
+    }
+
+    .result-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: .6rem;
+        margin-top: .5rem;
+    }
+</style>
+
+@code {
+    [Parameter] public Guid AttemptId { get; set; }
+
+    private AttemptResultResponse? _result;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _result = await Http.GetFromJsonAsync<AttemptResultResponse>(
+                $"/api/attempts/{AttemptId}/result");
+        }
+        catch
+        {
+            _error = "Failed to load result.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string FormatDuration(DateTime start, DateTime end)
+    {
+        var duration = end - start;
+        return duration.TotalHours >= 1
+            ? $"{(int)duration.TotalHours}h {duration.Minutes}m"
+            : $"{duration.Minutes}m {duration.Seconds}s";
+    }
+
+    record AttemptResultResponse(
+        Guid AttemptId, Guid TestId, decimal Score, decimal PassingScore,
+        bool Passed, int TotalQuestions, int CorrectAnswers,
+        DateTime StartedAt, DateTime FinishedAt, string Status,
+        List<QuestionResultResponse>? QuestionResults);
+
+    record QuestionResultResponse(Guid QuestionId, string QuestionText,
+        bool IsCorrect, decimal Points, decimal PointsEarned, string? Explanation);
+}

@@ -1,0 +1,469 @@
+﻿@page "/tests/create"
+@page "/tests/edit/{Id:guid}"
+@using Gui.Shared
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>@(IsEdit ? "Edit Test" : "Create Test")</PageTitle>
+
+<div class="page-header">
+    <div>
+        <a href="/tests/my" class="back-link">← My Tests</a>
+        <h2>@(IsEdit ? "Edit Test" : "Create Test")</h2>
+    </div>
+</div>
+
+<LoadingSpinner Show="_loading" />
+<AlertMessage Message="@_error" Type="error" />
+<AlertMessage Message="@_success" Type="success" />
+
+@if (!_loading)
+{
+    <div class="form-layout">
+        <div class="card">
+            <h4 class="section-title">Test Details</h4>
+
+            <div class="field">
+                <label>Title *</label>
+                <input @bind="_model.Title" placeholder="Enter test title" />
+            </div>
+
+            <div class="field">
+                <label>Description</label>
+                <textarea @bind="_model.Description" rows="3"
+                          placeholder="Optional description"></textarea>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label>Category *</label>
+                    <select @bind="_model.CategoryId">
+                        <option value="">Select category</option>
+                        @foreach (var cat in _categories)
+                        {
+                            <option value="@cat.Id">@cat.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Passing Score (%) *</label>
+                    <input type="number" @bind="_model.PassingScore"
+                           min="0" max="100" placeholder="e.g. 70" />
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label>Time Limit (minutes)</label>
+                    <input type="number" @bind="_model.TimeLimitMinutes"
+                           min="1" placeholder="Leave empty for no limit" />
+                </div>
+                <div class="field">
+                    <label>Max Attempts</label>
+                    <input type="number" @bind="_model.MaxAttempts"
+                           min="1" placeholder="Leave empty for unlimited" />
+                </div>
+            </div>
+
+            <div class="toggles">
+                <label class="toggle">
+                    <input type="checkbox" @bind="_model.ShuffleQuestions" />
+                    <span>Shuffle questions</span>
+                </label>
+                <label class="toggle">
+                    <input type="checkbox" @bind="_model.ShowCorrectAnswers" />
+                    <span>Show correct answers after attempt</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-header">
+                <h4 class="section-title" style="margin:0">
+                    Questions (@_model.Questions.Count)
+                </h4>
+                <button class="btn btn-secondary btn-sm" type="button"
+                        @onclick="AddQuestion">
+                    + Add Question
+                </button>
+            </div>
+
+            @if (!_model.Questions.Any())
+            {
+                <p style="color:#6c757d; font-size:.9rem; margin-top:1rem">
+                    No questions yet. Add at least one.
+                </p>
+            }
+
+            @foreach (var (q, qi) in _model.Questions.Select((q, i) => (q, i)))
+            {
+                <div class="question-block">
+                    <div class="question-block-header">
+                        <span class="question-num">@(qi + 1)</span>
+                        <span style="font-weight:500; font-size:.9rem">Question @(qi + 1)</span>
+                        <button class="btn-icon btn-icon-danger" type="button"
+                                @onclick="() => RemoveQuestion(qi)">✕</button>
+                    </div>
+
+                    <div class="field">
+                        <label>Question text *</label>
+                        <input @bind="q.Text" placeholder="Enter question" />
+                    </div>
+
+                    <div class="field-row">
+                        <div class="field">
+                            <label>Type</label>
+                            <select @bind="q.QuestionType"
+                                    @bind:after="() => OnQuestionTypeChanged(q)">
+                                <option value="0">Single Choice</option>
+                                <option value="1">Multiple Choice</option>
+                                <option value="2">True / False</option>
+                                <option value="3">Text Answer</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>Points *</label>
+                            <input type="number" @bind="q.Points" min="0.5" step="0.5" />
+                        </div>
+                        <div class="field">
+                            <label>Order</label>
+                            <input type="number" @bind="q.Order" min="1" />
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label>Explanation (shown after attempt)</label>
+                        <input @bind="q.Explanation" placeholder="Optional" />
+                    </div>
+
+                    @if (q.QuestionType != 3)
+                    {
+                        <div class="answers-section">
+                            <div class="answers-header">
+                                <span style="font-size:.85rem; font-weight:500">Answers</span>
+                                @if (q.QuestionType != 2)
+                                {
+                                    <button class="btn btn-secondary btn-sm" type="button"
+                                            @onclick="() => AddAnswer(q)">
+                                        + Add Answer
+                                    </button>
+                                }
+                            </div>
+
+                            @foreach (var (a, ai) in q.Answers.Select((a, i) => (a, i)))
+                            {
+                                <div class="answer-row">
+                                    <input type="@(q.QuestionType == 1 ? "checkbox" : "radio")"
+                                           name="correct-@qi"
+                                           checked="@a.IsCorrect"
+                                           @onchange="() => ToggleCorrect(q, a, q.QuestionType == 1)" />
+                                    <input class="answer-text" @bind="a.Text"
+                                           placeholder="Answer text" />
+                                    @if (q.QuestionType != 2)
+                                    {
+                                        <button class="btn-icon btn-icon-danger" type="button"
+                                                @onclick="() => RemoveAnswer(q, ai)">✕</button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="field">
+                            <label>Correct text answer *</label>
+                            <input @bind="@q.Answers[0].Text"
+                                   placeholder="The expected answer (case insensitive)" />
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:.75rem">
+            <a href="/tests/my" class="btn btn-secondary">Cancel</a>
+            <button class="btn btn-primary" @onclick="Submit" disabled="@_saving">
+                @(_saving ? "Saving..." : (IsEdit ? "Save Changes" : "Create Test"))
+            </button>
+        </div>
+    </div>
+}
+
+<style>
+    .form-layout { max-width: 760px; }
+    .section-title { margin: 0 0 1.25rem; font-size: 1rem; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
+    .toggles { display: flex; flex-direction: column; gap: .5rem; margin-top: .5rem; }
+    .toggle { display: flex; align-items: center; gap: .5rem; font-size: .9rem; cursor: pointer; color: #344054; }
+    .toggle input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+    .question-block { border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+    .question-block-header { display: flex; align-items: center; gap: .6rem; margin-bottom: .75rem; }
+    .question-num { width: 24px; height: 24px; border-radius: 50%; background: #e7f1ff; color: #0d6efd; font-size: .75rem; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .answers-section { margin-top: .5rem; }
+    .answers-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
+    .answer-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .4rem; }
+    .answer-text { flex: 1; border: 1px solid #ced4da; border-radius: 6px; padding: .35rem .6rem; font-size: .9rem; outline: none; }
+    .answer-text:focus { border-color: #0d6efd; }
+    .btn-icon { background: none; border: none; cursor: pointer; font-size: .85rem; padding: .2rem .4rem; border-radius: 4px; transition: background .15s; margin-left: auto; }
+    .btn-icon-danger { color: #dc3545; }
+    .btn-icon-danger:hover { background: #fff5f5; }
+</style>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private bool IsEdit => Id.HasValue;
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private string? _success;
+    private List<CategoryResponse> _categories = new();
+    private TestFormModel _model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _categories = await Http.GetFromJsonAsync<List<CategoryResponse>>(
+                "/api/categories") ?? new();
+        }
+        catch
+        {
+            _error = "Failed to load categories.";
+        }
+
+        if (IsEdit && Id.HasValue)
+        {
+            try
+            {
+                var test = await Http.GetFromJsonAsync<TestDetailResponse>(
+                    $"/api/tests/{Id}");
+                if (test is not null) MapFromResponse(test);
+            }
+            catch
+            {
+                _error = "Failed to load test.";
+            }
+        }
+
+        _loading = false;
+    }
+
+    private void AddQuestion()
+    {
+        var q = new QuestionFormModel
+        {
+            Order = _model.Questions.Count + 1,
+            QuestionType = 0
+        };
+        SetDefaultAnswers(q);
+        _model.Questions.Add(q);
+    }
+
+    private void RemoveQuestion(int index) =>
+        _model.Questions.RemoveAt(index);
+
+    private void AddAnswer(QuestionFormModel q) =>
+        q.Answers.Add(new AnswerFormModel { Order = q.Answers.Count + 1 });
+
+    private void RemoveAnswer(QuestionFormModel q, int index) =>
+        q.Answers.RemoveAt(index);
+
+    private void ToggleCorrect(QuestionFormModel q, AnswerFormModel answer, bool isMultiple)
+    {
+        if (!isMultiple)
+            foreach (var a in q.Answers) a.IsCorrect = false;
+        answer.IsCorrect = !answer.IsCorrect;
+    }
+
+    private void OnQuestionTypeChanged(QuestionFormModel q)
+    {
+        q.Answers.Clear();
+        SetDefaultAnswers(q);
+    }
+
+    private void SetDefaultAnswers(QuestionFormModel q)
+    {
+        switch (q.QuestionType)
+        {
+            case 2:
+                q.Answers.Add(new AnswerFormModel { Text = "True", Order = 1 });
+                q.Answers.Add(new AnswerFormModel { Text = "False", Order = 2 });
+                break;
+            case 3:
+                q.Answers.Add(new AnswerFormModel { IsCorrect = true, Order = 1 });
+                break;
+            default:
+                q.Answers.Add(new AnswerFormModel { Order = 1 });
+                q.Answers.Add(new AnswerFormModel { Order = 2 });
+                break;
+        }
+    }
+
+    private async Task Submit()
+    {
+        _error = null;
+        _success = null;
+
+        if (string.IsNullOrWhiteSpace(_model.Title))
+        { _error = "Title is required."; return; }
+
+        if (_model.CategoryId == Guid.Empty)
+        { _error = "Please select a category."; return; }
+
+        if (!_model.Questions.Any())
+        { _error = "Add at least one question."; return; }
+
+        foreach (var (q, i) in _model.Questions.Select((q, i) => (q, i)))
+        {
+            if (string.IsNullOrWhiteSpace(q.Text))
+            { _error = $"Question {i + 1} has no text."; return; }
+
+            if (q.QuestionType != 3 && !q.Answers.Any(a => a.IsCorrect))
+            { _error = $"Question {i + 1} needs at least one correct answer."; return; }
+
+            if (q.QuestionType != 3)
+            {
+                foreach (var (a, ai) in q.Answers.Select((a, ai) => (a, ai)))
+                {
+                    if (string.IsNullOrWhiteSpace(a.Text))
+                    { _error = $"Question {i + 1}, answer {ai + 1} text is empty."; return; }
+                }
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(q.Answers[0].Text))
+                { _error = $"Question {i + 1} needs a correct text answer."; return; }
+            }
+        }
+
+        _saving = true;
+
+        var payload = new
+        {
+            categoryId = _model.CategoryId,
+            title = _model.Title.Trim(),
+            description = string.IsNullOrWhiteSpace(_model.Description)
+                ? null : _model.Description.Trim(),
+            timeLimitMinutes = _model.TimeLimitMinutes,
+            maxAttempts = _model.MaxAttempts,
+            shuffleQuestions = _model.ShuffleQuestions,
+            showCorrectAnswers = _model.ShowCorrectAnswers,
+            passingScore = _model.PassingScore,
+            questions = _model.Questions.Select((q, i) => new
+            {
+                text = q.Text.Trim(),
+                questionType = q.QuestionType,
+                points = q.Points,
+                order = i + 1,
+                explanation = string.IsNullOrWhiteSpace(q.Explanation)
+                    ? null : q.Explanation.Trim(),
+                answers = q.Answers.Select((a, ai) => new
+                {
+                    text = (a.Text ?? string.Empty).Trim(),
+                    isCorrect = a.IsCorrect,
+                    order = ai + 1
+                }).ToList()
+            }).ToList()
+        };
+
+        try
+        {
+            HttpResponseMessage response;
+
+            if (IsEdit)
+                response = await Http.PutAsJsonAsync($"/api/tests/{Id}", payload);
+            else
+                response = await Http.PostAsJsonAsync("/api/tests", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _success = IsEdit ? "Test updated!" : "Test created!";
+                await Task.Delay(800);
+                Nav.NavigateTo("/tests/my");
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _error = $"Failed to save: {errorContent}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Something went wrong: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void MapFromResponse(TestDetailResponse t)
+    {
+        _model.Title = t.Title;
+        _model.Description = t.Description ?? "";
+        _model.CategoryId = t.CategoryId;
+        _model.PassingScore = t.PassingScore;
+        _model.TimeLimitMinutes = t.TimeLimitMinutes;
+        _model.MaxAttempts = t.MaxAttempts;
+        _model.ShuffleQuestions = t.ShuffleQuestions;
+        _model.ShowCorrectAnswers = t.ShowCorrectAnswers;
+        _model.Questions = t.Questions.Select(q => new QuestionFormModel
+        {
+            Text = q.Text,
+            QuestionType = q.QuestionType,
+            Points = q.Points,
+            Order = q.Order,
+            Explanation = q.Explanation ?? "",
+            Answers = q.Answers.Select(a => new AnswerFormModel
+            {
+                Text = a.Text ?? "",
+                IsCorrect = a.IsCorrect ?? false,
+                Order = a.Order
+            }).ToList()
+        }).ToList();
+    }
+
+    class TestFormModel
+    {
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public Guid CategoryId { get; set; }
+        public decimal PassingScore { get; set; } = 70;
+        public int? TimeLimitMinutes { get; set; }
+        public int? MaxAttempts { get; set; }
+        public bool ShuffleQuestions { get; set; }
+        public bool ShowCorrectAnswers { get; set; } = true;
+        public List<QuestionFormModel> Questions { get; set; } = new();
+    }
+
+    class QuestionFormModel
+    {
+        public string Text { get; set; } = "";
+        public int QuestionType { get; set; }
+        public decimal Points { get; set; } = 1;
+        public int Order { get; set; }
+        public string Explanation { get; set; } = "";
+        public List<AnswerFormModel> Answers { get; set; } = new();
+    }
+
+    class AnswerFormModel
+    {
+        public string Text { get; set; } = "";
+        public bool IsCorrect { get; set; }
+        public int Order { get; set; }
+    }
+
+    record CategoryResponse(Guid Id, string Name, int TestCount);
+
+    record TestDetailResponse(Guid Id, string Title, string? Description,
+        string Category, Guid CategoryId, int? TimeLimitMinutes, int? MaxAttempts,
+        bool ShuffleQuestions, bool ShowCorrectAnswers, decimal PassingScore,
+        DateTime CreatedAt, Guid CreatedByUserId, List<QuestionDetailResponse> Questions);
+
+    record QuestionDetailResponse(Guid Id, string Text, int QuestionType,
+        decimal Points, int Order, string? Explanation, List<AnswerDetailResponse> Answers);
+
+    record AnswerDetailResponse(Guid Id, string Text, int Order, bool? IsCorrect);
+}

@@ -1,0 +1,36 @@
+﻿@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="alert alert-@Type">@Message</div>
+}
+
+@code {
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public string Type { get; set; } = "error";
+}
+
+<style>
+    .alert {
+        padding: .6rem .9rem;
+        border-radius: 6px;
+        font-size: .875rem;
+        margin-bottom: 1rem;
+    }
+
+    .alert-error {
+        background: #fff5f5;
+        border: 1px solid #f5c2c7;
+        color: #842029;
+    }
+
+    .alert-success {
+        background: #f0fff4;
+        border: 1px solid #b7ebc0;
+        color: #1a5c2a;
+    }
+
+    .alert-info {
+        background: #e7f1ff;
+        border: 1px solid #b6d4fe;
+        color: #084298;
+    }
+</style>

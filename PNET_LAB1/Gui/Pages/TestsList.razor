@@ -1,0 +1,181 @@
+﻿@page "/tests"
+@using Gui.Shared
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>All Tests</PageTitle>
+
+<div class="page-header">
+    <h2>All Tests</h2>
+</div>
+
+<div class="filter-bar">
+    <input class="search-input" placeholder="Search by title..."
+           @bind="_search" @bind:event="oninput" />
+
+    <select @bind="_selectedCategory">
+        <option value="">All Categories</option>
+        @foreach (var cat in _categories)
+        {
+            <option value="@cat.Id">@cat.Name</option>
+        }
+    </select>
+    
+</div>
+
+<LoadingSpinner Show="_loading" />
+
+@if (!_loading)
+{
+    @if (_filtered.Any())
+    {
+        <div class="tests-grid">
+            @foreach (var test in _filtered)
+            {
+                var url = $"/tests/{test.Id}";
+                <div class="test-card" @onclick="() => Nav.NavigateTo(url)">
+                    <div class="test-card-header">
+                        <span class="badge badge-blue">@test.Category</span>
+                        @if (test.TimeLimitMinutes.HasValue)
+                        {
+                            <span class="badge badge-gray">⏱ @test.TimeLimitMinutes min</span>
+                        }
+                    </div>
+                    <h3 class="test-card-title">@test.Title</h3>
+                    @if (!string.IsNullOrEmpty(test.Description))
+                    {
+                        <p class="test-card-desc">@test.Description</p>
+                    }
+                    <div class="test-card-footer">
+                        <span>@test.QuestionCount questions</span>
+                        <span>Pass: @test.PassingScore%</span>
+                        @if (test.MaxAttempts.HasValue)
+                        {
+                            <span>🔁 @test.MaxAttempts attempts</span>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <p>No tests found.</p>
+        </div>
+    }
+}
+
+<style>
+    .filter-bar {
+        display: flex;
+        gap: .75rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .search-input {
+        flex: 1;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        padding: .5rem .75rem;
+        font-size: .9rem;
+        outline: none;
+    }
+
+    .search-input:focus { border-color: #0d6efd; }
+
+    .filter-bar select {
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        padding: .5rem .75rem;
+        font-size: .9rem;
+        outline: none;
+        background: #fff;
+        min-width: 160px;
+    }
+
+    .tests-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+    }
+
+    .test-card {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1.25rem;
+        cursor: pointer;
+        transition: box-shadow .15s, border-color .15s;
+    }
+
+    .test-card:hover {
+        box-shadow: 0 2px 12px rgba(0,0,0,.08);
+        border-color: #0d6efd;
+    }
+
+    .test-card-header {
+        display: flex;
+        gap: .4rem;
+        margin-bottom: .75rem;
+        flex-wrap: wrap;
+    }
+
+    .test-card-title {
+        margin: 0 0 .5rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #212529;
+    }
+
+    .test-card-desc {
+        font-size: .85rem;
+        color: #6c757d;
+        margin: 0 0 1rem;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .test-card-footer {
+        display: flex;
+        gap: 1rem;
+        font-size: .8rem;
+        color: #6c757d;
+        border-top: 1px solid #f1f3f5;
+        padding-top: .75rem;
+        flex-wrap: wrap;
+    }
+</style>
+
+@code {
+    private List<TestResponse> _tests = new();
+    private List<CategoryResponse> _categories = new();
+    private bool _loading = true;
+    private string _search = "";
+    private string _selectedCategory = "";
+
+    private IEnumerable<TestResponse> _filtered => _tests
+        .Where(t => string.IsNullOrEmpty(_search) ||
+                    t.Title.Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .Where(t => string.IsNullOrEmpty(_selectedCategory) ||
+                    t.CategoryId.ToString() == _selectedCategory);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var testsTask = Http.GetFromJsonAsync<List<TestResponse>>("/api/tests");
+        var catsTask = Http.GetFromJsonAsync<List<CategoryResponse>>("/api/categories");
+        await Task.WhenAll(testsTask, catsTask);
+
+        _tests = testsTask.Result ?? new();
+        _categories = catsTask.Result ?? new();
+        _loading = false;
+    }
+
+    record TestResponse(Guid Id, string Title, string? Description, string Category,
+        Guid CategoryId, int? TimeLimitMinutes, int? MaxAttempts,
+        decimal PassingScore, int QuestionCount, DateTime CreatedAt);
+
+    record CategoryResponse(Guid Id, string Name, int TestCount);
+}

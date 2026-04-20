@@ -1,0 +1,475 @@
+﻿@page "/attempt/{AttemptId:guid}"
+@using Gui.Shared
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<PageTitle>Taking Test</PageTitle>
+
+<LoadingSpinner Show="_loading" />
+<AlertMessage Message="@_error" Type="error" />
+
+@if (_attempt is not null)
+{
+    <div class="take-test-layout">
+        <div class="test-header card">
+            <div class="test-header-left">
+                <h2>@_attempt.TestTitle</h2>
+                <span class="badge badge-gray">
+                    Question @(_current + 1) of @_attempt.Questions.Count
+                </span>
+            </div>
+            @if (_attempt.TimeLimitMinutes.HasValue)
+            {
+                <div class="timer @(_timerWarning ? "timer-warning" : "")">
+                    ⏱ @FormatTime(_secondsLeft)
+                </div>
+            }
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress-fill"
+                 style="width: @((_current + 1) * 100 / _attempt.Questions.Count)%">
+            </div>
+        </div>
+
+        @{
+            var q = _attempt.Questions[_current];
+        }
+        <div class="card question-card">
+            <div class="question-meta">
+                <span class="badge badge-blue">@GetQuestionTypeLabel(q.QuestionType)</span>
+                <span class="badge badge-gray">@q.Points pts</span>
+            </div>
+            <h3 class="question-text">@q.Text</h3>
+            @if (q.QuestionType == "SingleChoice" || q.QuestionType == "TrueFalse")
+            {
+                @foreach (var answer in q.Answers)
+                {
+                    var isSelected = _answers.TryGetValue(q.Id, out var sel)
+                        && sel.SelectedIds.Contains(answer.Id);
+                    <div class="answer-option @(isSelected ? "selected" : "")"
+                         @onclick="() => SelectSingle(q.Id, answer.Id)">
+                        <div class="answer-radio @(isSelected ? "radio-active" : "")"></div>
+                        <span>@answer.Text</span>
+                    </div>
+                }
+            }
+
+            @if (q.QuestionType == "MultipleChoice")
+            {
+                <p class="hint">Select all that apply</p>
+                @foreach (var answer in q.Answers)
+                {
+                    var isSelected = _answers.TryGetValue(q.Id, out var sel)
+                        && sel.SelectedIds.Contains(answer.Id);
+                    <div class="answer-option @(isSelected ? "selected" : "")"
+                         @onclick="() => ToggleMultiple(q.Id, answer.Id)">
+                        <div class="answer-checkbox @(isSelected ? "checkbox-active" : "")">
+                            @if (isSelected) { <span>✓</span> }
+                        </div>
+                        <span>@answer.Text</span>
+                    </div>
+                }
+            }
+
+            @if (q.QuestionType == "Text")
+            {
+                var qId = q.Id;
+                <div class="field" style="margin-top:1rem">
+                    <input placeholder="Type your answer here..."
+                           value="@GetTextAnswer(qId)"
+                           @oninput="e => SetTextAnswer(qId, e.Value?.ToString() ?? string.Empty)" />
+                </div>
+            }
+        </div>
+
+        <div class="nav-actions">
+            <button class="btn btn-secondary"
+                    @onclick="Previous"
+                    disabled="@(_current == 0)">
+                ← Previous
+            </button>
+
+            <div class="question-dots">
+                @for (int i = 0; i < _attempt.Questions.Count; i++)
+                {
+                    var idx = i;
+                    var answered = _answers.ContainsKey(_attempt.Questions[i].Id);
+                    <button class="dot @(idx == _current ? "dot-active" : "") @(answered ? "dot-answered" : "")"
+                            @onclick="() => _current = idx">
+                    </button>
+                }
+            </div>
+
+            @if (_current < _attempt.Questions.Count - 1)
+            {
+                <button class="btn btn-primary" @onclick="Next">Next →</button>
+            }
+            else
+            {
+                <button class="btn btn-primary" @onclick="ShowSubmitDialog"
+                        disabled="@_submitting">
+                    Submit Test
+                </button>
+            }
+        </div>
+    </div>
+}
+
+@if (_showSubmitDialog)
+{
+    <div class="modal-overlay">
+        <div class="modal">
+            <h3>Submit Test?</h3>
+            <p>
+                You have answered
+                <strong>@_answers.Count of @_attempt!.Questions.Count</strong> questions.
+                @if (_answers.Count < _attempt.Questions.Count)
+                {
+                    <span class="unanswered-warn">
+                        @(_attempt.Questions.Count - _answers.Count) question(s) unanswered.
+                    </span>
+                }
+            </p>
+            <AlertMessage Message="@_error" Type="error" />
+            <div class="modal-actions">
+                <button class="btn btn-secondary"
+                        @onclick="() => _showSubmitDialog = false">
+                    Go back
+                </button>
+                <button class="btn btn-primary" @onclick="Submit"
+                        disabled="@_submitting">
+                    @(_submitting ? "Submitting..." : "Confirm Submit")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .take-test-layout {
+        max-width: 720px;
+        margin: 0 auto;
+    }
+
+    .test-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: .75rem;
+    }
+
+    .test-header h2 {
+        margin: 0 0 .35rem;
+        font-size: 1.1rem;
+    }
+
+    .timer {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #212529;
+        min-width: 80px;
+        text-align: right;
+    }
+    
+    .progress-bar {
+        height: 6px;
+        background: #dee2e6;
+        border-radius: 3px;
+        margin-bottom: 1.25rem;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: #0d6efd;
+        border-radius: 3px;
+        transition: width .3s ease;
+    }
+
+    .question-card { margin-bottom: 1rem; }
+
+    .question-meta {
+        display: flex;
+        gap: .4rem;
+        margin-bottom: .75rem;
+    }
+
+    .question-text {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin: 0 0 1.25rem;
+        line-height: 1.5;
+    }
+
+    .hint {
+        font-size: .82rem;
+        color: #6c757d;
+        margin: 0 0 .75rem;
+    }
+
+    .answer-option {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        padding: .75rem 1rem;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        margin-bottom: .5rem;
+        cursor: pointer;
+        transition: border-color .15s, background .15s;
+        font-size: .95rem;
+    }
+
+    .answer-option:hover { border-color: #0d6efd; background: #f8f9fa; }
+    .answer-option.selected { border-color: #0d6efd; background: #e7f1ff; }
+
+    .answer-radio {
+        width: 18px;
+        height: 18px;
+        border: 2px solid #ced4da;
+        border-radius: 50%;
+        flex-shrink: 0;
+        transition: border-color .15s;
+    }
+
+    .radio-active { border: 5px solid #0d6efd; }
+
+    .answer-checkbox {
+        width: 18px;
+        height: 18px;
+        border: 2px solid #ced4da;
+        border-radius: 4px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .7rem;
+        transition: all .15s;
+    }
+
+    .checkbox-active {
+        background: #0d6efd;
+        border-color: #0d6efd;
+        color: #fff;
+    }
+
+    .nav-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: .5rem;
+    }
+
+    .question-dots {
+        display: flex;
+        gap: .35rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        border: none;
+        background: #dee2e6;
+        cursor: pointer;
+        padding: 0;
+        transition: background .15s;
+    }
+
+    .unanswered-warn {
+        color: #dc3545;
+        display: block;
+        margin-top: .25rem;
+        font-size: .875rem;
+    }
+
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+    }
+
+    .modal {
+        background: #fff;
+        border-radius: 8px;
+        padding: 1.75rem;
+        width: 100%;
+        max-width: 420px;
+    }
+
+    .modal h3 { margin: 0 0 .5rem; }
+    .modal p { color: #6c757d; font-size: .9rem; margin: 0 0 1.25rem; }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: .5rem;
+        margin-top: 1rem;
+    }
+</style>
+
+@code {
+    [Parameter] public Guid AttemptId { get; set; }
+
+    private StartAttemptResponse? _attempt;
+    private bool _loading = true;
+    private bool _submitting;
+    private bool _showSubmitDialog;
+    private string? _error;
+    private int _current;
+
+    private Dictionary<Guid, AnswerState> _answers = new();
+
+    private int _secondsLeft;
+    private bool _timerWarning;
+    private System.Threading.Timer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _attempt = await Http.GetFromJsonAsync<StartAttemptResponse>(
+                $"/api/attempts/{AttemptId}/detail");
+
+            if (_attempt?.TimeLimitMinutes.HasValue == true)
+            {
+                _secondsLeft = _attempt.TimeLimitMinutes.Value * 60;
+                _timer = new System.Threading.Timer(async _ =>
+                {
+                    _secondsLeft--;
+                    _timerWarning = _secondsLeft <= 60;
+
+                    if (_secondsLeft <= 0)
+                    {
+                        _timer?.Dispose();
+                        await InvokeAsync(Submit);
+                    }
+                    else
+                    {
+                        await InvokeAsync(StateHasChanged);
+                    }
+                }, null, 1000, 1000);
+            }
+        }
+        catch
+        {
+            _error = "Failed to load test attempt.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void SelectSingle(Guid questionId, Guid answerId)
+    {
+        _answers[questionId] = new AnswerState { SelectedIds = new() { answerId } };
+    }
+
+    private void ToggleMultiple(Guid questionId, Guid answerId)
+    {
+        if (!_answers.ContainsKey(questionId))
+            _answers[questionId] = new AnswerState();
+
+        var ids = _answers[questionId].SelectedIds;
+        if (ids.Contains(answerId)) ids.Remove(answerId);
+        else ids.Add(answerId);
+    }
+
+    private string GetTextAnswer(Guid questionId) =>
+        _answers.TryGetValue(questionId, out var s) ? s.TextAnswer : "";
+
+    private void SetTextAnswer(Guid questionId, string value)
+    {
+        if (!_answers.ContainsKey(questionId))
+            _answers[questionId] = new AnswerState();
+        _answers[questionId].TextAnswer = value;
+    }
+
+    private void Next() { if (_current < _attempt!.Questions.Count - 1) _current++; }
+    private void Previous() { if (_current > 0) _current--; }
+    private void ShowSubmitDialog() => _showSubmitDialog = true;
+
+    private async Task Submit()
+    {
+        _submitting = true;
+        _error = null;
+
+        try
+        {
+            var payload = new
+            {
+                answers = _attempt!.Questions.Select(q =>
+                {
+                    _answers.TryGetValue(q.Id, out var ans);
+                    return new
+                    {
+                        questionId = q.Id,
+                        selectedAnswerIds = ans?.SelectedIds ?? new List<Guid>(),
+                        textAnswer = ans?.TextAnswer
+                    };
+                }).ToList()
+            };
+
+            var response = await Http.PostAsJsonAsync(
+                $"/api/attempts/{AttemptId}/submit", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Nav.NavigateTo($"/attempt/{AttemptId}/result");
+            }
+            else
+            {
+                _showSubmitDialog = false;
+                _error = "Submission failed. Please try again.";
+            }
+        }
+        catch
+        {
+            _error = "Something went wrong.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private static string FormatTime(int seconds)
+    {
+        var m = seconds / 60;
+        var s = seconds % 60;
+        return $"{m:D2}:{s:D2}";
+    }
+
+    private static string GetQuestionTypeLabel(string type) => type switch
+    {
+        "SingleChoice" => "Single Choice",
+        "MultipleChoice" => "Multiple Choice",
+        "TrueFalse" => "True / False",
+        "Text" => "Text Answer",
+        _ => type
+    };
+
+    public void Dispose() => _timer?.Dispose();
+
+    class AnswerState
+    {
+        public List<Guid> SelectedIds { get; set; } = new();
+        public string TextAnswer { get; set; } = "";
+    }
+
+    record StartAttemptResponse(Guid AttemptId, Guid TestId, string TestTitle,
+        int? TimeLimitMinutes, DateTime StartedAt, List<QuestionResponse> Questions);
+
+    record QuestionResponse(Guid Id, string Text, string QuestionType,
+        decimal Points, int Order, string? Explanation, List<AnswerResponse> Answers);
+
+    record AnswerResponse(Guid Id, string Text, int Order);
+}
