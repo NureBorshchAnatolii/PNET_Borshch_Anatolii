@@ -12,7 +12,7 @@ public class TestAttempt
     public AttemptStatus Status { get; set; } = AttemptStatus.InProgress;
     public decimal? Score { get; set; }
     public int AttemptNumber { get; set; }
- 
+
     public User User { get; set; } = null!;
     public Test Test { get; set; } = null!;
     public ICollection<UserAnswer> UserAnswers { get; set; } = new List<UserAnswer>();

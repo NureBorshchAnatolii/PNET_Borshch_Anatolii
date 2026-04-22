@@ -1,6 +1,5 @@
 ﻿@page "/admin/categories"
 @using Gui.Shared
-@using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "Admin")]
 @inject HttpClient Http
 
@@ -10,8 +9,8 @@
     <h2>Categories</h2>
 </div>
 
-<AlertMessage Message="@_error" Type="error" />
-<AlertMessage Message="@_success" Type="success" />
+<AlertMessage Message="@_error" Type="error"/>
+<AlertMessage Message="@_success" Type="success"/>
 
 <div class="card create-form">
     <h4 style="margin: 0 0 1rem">New Category</h4>
@@ -19,14 +18,14 @@
         <input placeholder="Category name"
                @bind="_newName"
                @bind:event="oninput"
-               @onkeydown="OnKeyDown" />
+               @onkeydown="OnKeyDown"/>
         <button class="btn btn-primary" @onclick="Create" disabled="@_creating">
             @(_creating ? "Adding..." : "Add")
         </button>
     </div>
 </div>
 
-<LoadingSpinner Show="_loading" />
+<LoadingSpinner Show="_loading"/>
 
 @if (!_loading)
 {
@@ -35,29 +34,29 @@
         <div class="card" style="padding:0; overflow:hidden">
             <table class="table">
                 <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Tests</th>
-                        <th></th>
-                    </tr>
+                <tr>
+                    <th>Name</th>
+                    <th>Tests</th>
+                    <th></th>
+                </tr>
                 </thead>
                 <tbody>
-                    @foreach (var cat in _categories)
-                    {
-                        <tr>
-                            <td style="font-weight:500">@cat.Name</td>
-                            <td>
-                                <span class="badge badge-gray">@cat.TestCount tests</span>
-                            </td>
-                            <td style="text-align:right">
-                                <button class="btn btn-danger btn-sm"
-                                        @onclick="() => ConfirmDelete(cat)"
-                                        disabled="@(cat.TestCount > 0)">
-                                    @(cat.TestCount > 0 ? "In use" : "Delete")
-                                </button>
-                            </td>
-                        </tr>
-                    }
+                @foreach (var cat in _categories)
+                {
+                    <tr>
+                        <td style="font-weight:500">@cat.Name</td>
+                        <td>
+                            <span class="badge badge-gray">@cat.TestCount tests</span>
+                        </td>
+                        <td style="text-align:right">
+                            <button class="btn btn-danger btn-sm"
+                                    @onclick="() => ConfirmDelete(cat)"
+                                    disabled="@(cat.TestCount > 0)">
+                                @(cat.TestCount > 0 ? "In use" : "Delete")
+                            </button>
+                        </td>
+                    </tr>
+                }
                 </tbody>
             </table>
         </div>
@@ -79,7 +78,7 @@
                 Are you sure you want to delete
                 <strong>@_deleteTarget.Name</strong>?
             </p>
-            <AlertMessage Message="@_deleteError" Type="error" />
+            <AlertMessage Message="@_deleteError" Type="error"/>
             <div class="modal-actions">
                 <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
                 <button class="btn btn-danger" @onclick="DeleteConfirmed"
@@ -92,7 +91,9 @@
 }
 
 <style>
-    .create-form { margin-bottom: 1.25rem; }
+    .create-form {
+        margin-bottom: 1.25rem;
+    }
 
     .create-row {
         display: flex;
@@ -109,12 +110,14 @@
         transition: border-color .15s;
     }
 
-    .create-row input:focus { border-color: #0d6efd; }
+    .create-row input:focus {
+        border-color: #0d6efd;
+    }
 
     .modal-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,.35);
+        background: rgba(0, 0, 0, .35);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -129,8 +132,15 @@
         max-width: 400px;
     }
 
-    .modal h3 { margin: 0 0 .5rem; }
-    .modal p { color: #6c757d; font-size: .9rem; margin: 0 0 1.25rem; }
+    .modal h3 {
+        margin: 0 0 .5rem;
+    }
+
+    .modal p {
+        color: #6c757d;
+        font-size: .9rem;
+        margin: 0 0 1.25rem;
+    }
 
     .modal-actions {
         display: flex;
@@ -150,7 +160,10 @@
     private bool _deleting;
     private string? _deleteError;
 
-    protected override async Task OnInitializedAsync() => await LoadCategories();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategories();
+    }
 
     private async Task LoadCategories()
     {
@@ -158,7 +171,7 @@
         try
         {
             _categories = await Http.GetFromJsonAsync<List<CategoryResponse>>(
-                "/api/categories") ?? new();
+                "/api/categories") ?? new List<CategoryResponse>();
         }
         catch
         {
@@ -259,4 +272,5 @@
     }
 
     record CategoryResponse(Guid Id, string Name, int TestCount);
+
 }

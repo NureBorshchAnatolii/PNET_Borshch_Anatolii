@@ -7,8 +7,8 @@ namespace Application.Implementations;
 
 public class TestService : ITestService
 {
-    private readonly ITestRepository _testRepo;
     private readonly ICategoryRepository _categoryRepo;
+    private readonly ITestRepository _testRepo;
 
     public TestService(ITestRepository testRepo, ICategoryRepository categoryRepo)
     {
@@ -19,7 +19,7 @@ public class TestService : ITestService
     public async Task<TestResponse> CreateTestAsync(Guid userId, CreateTestRequest request)
     {
         var category = await _categoryRepo.GetByIdAsync(request.CategoryId)
-            ?? throw new KeyNotFoundException("Category not found.");
+                       ?? throw new KeyNotFoundException("Category not found.");
 
         var test = new Test
         {
@@ -61,12 +61,12 @@ public class TestService : ITestService
 
     public async Task<TestDetailResponse?> GetTestByIdAsync(Guid id, bool isOwnerOrAdmin = false)
     {
-        var test = await _testRepo.GetByIdAsync(id, includeQuestions: true);
+        var test = await _testRepo.GetByIdAsync(id, true);
         if (test is null) return null;
 
         var questions = (test.ShuffleQuestions && !isOwnerOrAdmin
-            ? test.Questions.OrderBy(_ => Guid.NewGuid())
-            : test.Questions.OrderBy(q => q.Order))
+                ? test.Questions.OrderBy(_ => Guid.NewGuid())
+                : test.Questions.OrderBy(q => q.Order))
             .Select(q => new QuestionResponse(
                 q.Id, q.Text, q.QuestionType, q.Points, q.Order, q.Explanation,
                 q.Answers.OrderBy(a => a.Order)
@@ -101,8 +101,8 @@ public class TestService : ITestService
 
     public async Task UpdateTestAsync(Guid testId, Guid requestingUserId, CreateTestRequest request)
     {
-        var test = await _testRepo.GetByIdAsync(testId, includeQuestions: true)
-            ?? throw new KeyNotFoundException("Test not found.");
+        var test = await _testRepo.GetByIdAsync(testId, true)
+                   ?? throw new KeyNotFoundException("Test not found.");
 
         if (test.UserId != requestingUserId)
             throw new UnauthorizedAccessException("You don't own this test.");
@@ -140,7 +140,7 @@ public class TestService : ITestService
     public async Task DeleteTestAsync(Guid testId, Guid requestingUserId)
     {
         var test = await _testRepo.GetByIdAsync(testId)
-            ?? throw new KeyNotFoundException("Test not found.");
+                   ?? throw new KeyNotFoundException("Test not found.");
 
         if (test.UserId != requestingUserId)
             throw new UnauthorizedAccessException("You don't own this test.");
@@ -155,15 +155,17 @@ public class TestService : ITestService
             throw new InvalidOperationException(ex.InnerException.Message);
         }
     }
-    
+
     public async Task<IEnumerable<TestResponse>> GetByCategoryIdAsync(Guid categoryId)
     {
         var tests = await _testRepo.GetByCategoryIdAsync(categoryId);
         return tests.Select(t => MapToTestResponse(t, t.Category?.Name ?? ""));
     }
-    
-    private static TestResponse MapToTestResponse(Test t, string categoryName) =>
-        new(t.Id, t.Title, t.Description, categoryName,
+
+    private static TestResponse MapToTestResponse(Test t, string categoryName)
+    {
+        return new TestResponse(t.Id, t.Title, t.Description, categoryName,
             t.TimeLimitMinutes, t.MaxAttempts, t.PassingScore,
             t.Questions?.Count ?? 0, t.CreatedAt);
+    }
 }

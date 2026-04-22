@@ -19,18 +19,18 @@
         }
 
         <EditForm Model="_model" OnValidSubmit="HandleLogin">
-            <DataAnnotationsValidator />
+            <DataAnnotationsValidator/>
 
             <div class="field">
                 <label>Email</label>
-                <InputText @bind-Value="_model.Email" placeholder="you@example.com" type="email" />
-                <ValidationMessage For="@(() => _model.Email)" />
+                <InputText @bind-Value="_model.Email" placeholder="you@example.com" type="email"/>
+                <ValidationMessage For="@(() => _model.Email)"/>
             </div>
 
             <div class="field">
                 <label>Password</label>
-                <InputText @bind-Value="_model.Password" placeholder="••••••••" type="password" />
-                <ValidationMessage For="@(() => _model.Password)" />
+                <InputText @bind-Value="_model.Password" placeholder="••••••••" type="password"/>
+                <ValidationMessage For="@(() => _model.Password)"/>
             </div>
 
             <button type="submit" disabled="@_isLoading">
@@ -112,12 +112,6 @@
         border-color: #0d6efd;
     }
 
-    .field .validation-message {
-        color: #dc3545;
-        font-size: .8rem;
-        margin-top: .25rem;
-    }
-
     button[type="submit"] {
         width: 100%;
         margin-top: .5rem;
@@ -171,7 +165,7 @@
         string Role,
         DateTime ExpiresAt
     );
-    
+
     private async Task HandleLogin()
     {
         _isLoading = true;
@@ -193,6 +187,7 @@
                     await AuthProvider.MarkUserAsAuthenticatedAsync(result!.Token);
                     Nav.NavigateTo("/");
                 }
+
                 Nav.NavigateTo("/");
             }
             else
@@ -220,4 +215,5 @@
         [MinLength(6, ErrorMessage = "Minimum 6 characters")]
         public string Password { get; set; } = string.Empty;
     }
+
 }

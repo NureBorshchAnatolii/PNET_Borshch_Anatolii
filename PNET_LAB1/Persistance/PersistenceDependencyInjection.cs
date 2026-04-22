@@ -12,12 +12,12 @@ public static class PersistenceDependencyInjection
 {
     public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
-
         services.AddDbContext<ApplicationDbContext>(options =>
         {
-            string connString = configuration.GetConnectionString("DefaultConnection") 
-                                ?? throw new ArgumentException("connstring is null");
-            options.UseSqlServer(connString);
+            var connString = configuration.GetConnectionString("DefaultConnection")
+                             ?? throw new ArgumentException("connstring is null");
+            options
+                .UseSqlServer(connString);
         });
 
         services.AddScoped<IUserRepository, UserRepository>();
@@ -28,7 +28,7 @@ public static class PersistenceDependencyInjection
         services.AddScoped<IUserAnswerRepository, UserAnswerRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<IReportService, ReportService>();
-        
+
         return services;
     }
 }

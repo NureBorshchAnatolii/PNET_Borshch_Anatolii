@@ -21,6 +21,31 @@ public class TestAttemptService : ITestAttemptService
         _userAnswerRepo = userAnswerRepo;
     }
 
+    public async Task<StartAttemptResponse?> GetAttemptDetailAsync(Guid userId, Guid attemptId)
+    {
+        var attempt = await _attemptRepo.GetByIdAsync(attemptId);
+        if (attempt is null || attempt.UserId != userId) return null;
+        if (attempt.Status != AttemptStatus.InProgress) return null;
+
+        var test = await _testRepo.GetByIdAsync(attempt.TestId, true)
+                   ?? throw new KeyNotFoundException("Test not found.");
+
+        var questions = (test.ShuffleQuestions
+                ? test.Questions.OrderBy(_ => Guid.NewGuid())
+                : test.Questions.OrderBy(q => q.Order))
+            .Select(q => new QuestionResponse(
+                q.Id, q.Text, q.QuestionType,
+                q.Points, q.Order, null,
+                q.Answers.OrderBy(a => a.Order)
+                    .Select(a => new AnswerResponse(a.Id, a.Text, a.Order, null))
+                    .ToList()))
+            .ToList();
+
+        return new StartAttemptResponse(
+            attempt.Id, test.Id, test.Title,
+            test.TimeLimitMinutes, attempt.StartedAt, questions);
+    }
+
     public async Task<IEnumerable<AttemptSummaryResponse>> GetUserAttemptsAsync(Guid userId)
     {
         var attempts = await _attemptRepo.GetByUserIdAsync(userId);
@@ -37,11 +62,11 @@ public class TestAttemptService : ITestAttemptService
             a.AttemptNumber
         ));
     }
-    
+
     public async Task<StartAttemptResponse> StartAttemptAsync(Guid userId, Guid testId)
     {
-        var test = await _testRepo.GetByIdAsync(testId, includeQuestions: true)
-            ?? throw new KeyNotFoundException("Test not found.");
+        var test = await _testRepo.GetByIdAsync(testId, true)
+                   ?? throw new KeyNotFoundException("Test not found.");
 
         var existing = await _attemptRepo.GetActiveAttemptAsync(userId, testId);
         if (existing is not null)
@@ -85,10 +110,10 @@ public class TestAttemptService : ITestAttemptService
             test.TimeLimitMinutes, attempt.StartedAt, questions);
     }
 
-    public async Task<AttemptResultResponse> SubmitAttemptAsync(Guid userId, Guid attemptId, SubmitAttemptRequest request)
+    public async Task SubmitAttemptAsync(Guid userId, Guid attemptId, SubmitAttemptRequest request)
     {
         var attempt = await _attemptRepo.GetByIdAsync(attemptId)
-            ?? throw new KeyNotFoundException("Attempt not found.");
+                      ?? throw new KeyNotFoundException("Attempt not found.");
 
         if (attempt.UserId != userId)
             throw new UnauthorizedAccessException();
@@ -96,8 +121,8 @@ public class TestAttemptService : ITestAttemptService
         if (attempt.Status != AttemptStatus.InProgress)
             throw new InvalidOperationException("This attempt is already completed.");
 
-        var test = await _testRepo.GetByIdAsync(attempt.TestId, includeQuestions: true)
-            ?? throw new KeyNotFoundException("Test not found.");
+        var test = await _testRepo.GetByIdAsync(attempt.TestId, true)
+                   ?? throw new KeyNotFoundException("Test not found.");
 
         var isTimedOut = test.TimeLimitMinutes.HasValue &&
                          DateTime.UtcNow > attempt.StartedAt.AddMinutes(test.TimeLimitMinutes.Value);
@@ -108,12 +133,6 @@ public class TestAttemptService : ITestAttemptService
             attempt.FinishedAt = DateTime.UtcNow;
             attempt.Score = 0;
             await _attemptRepo.UpdateAsync(attempt);
-
-            return new AttemptResultResponse(
-                attemptId, 0, test.PassingScore, false,
-                test.Questions.Count, 0,
-                attempt.StartedAt, attempt.FinishedAt!.Value,
-                AttemptStatus.TimedOut, null);
         }
 
         var userAnswers = new List<UserAnswer>();
@@ -122,56 +141,39 @@ public class TestAttemptService : ITestAttemptService
             var submitted = request.Answers
                 .FirstOrDefault(a => a.QuestionId == question.Id);
             if (submitted is null) continue;
-            (_, _, var rows) = EvaluateQuestion(question, submitted, attemptId);
+            var (_, _, rows) = EvaluateQuestion(question, submitted, attemptId);
             userAnswers.AddRange(rows);
         }
 
         await _userAnswerRepo.AddRangeAsync(userAnswers);
-
-        var updated = await _attemptRepo.GetByIdAsync(attemptId)
-            ?? throw new KeyNotFoundException("Attempt not found after submit.");
-
-        var passed = updated.Score >= test.PassingScore;
-
-        return new AttemptResultResponse(
-            attemptId,
-            updated.Score ?? 0,
-            test.PassingScore,
-            passed,
-            test.Questions.Count,
-            0,
-            updated.StartedAt,
-            updated.FinishedAt!.Value,
-            updated.Status,
-            null);
     }
 
     public async Task<AttemptResultResponse?> GetAttemptResultAsync(Guid userId, Guid attemptId)
     {
-        var attempt = await _attemptRepo.GetByIdAsync(attemptId, includeUserAnswers: true);
+        var attempt = await _attemptRepo.GetByIdAsync(attemptId, true);
         if (attempt is null || attempt.UserId != userId) return null;
         if (attempt.Status == AttemptStatus.InProgress) return null;
 
-        var test = await _testRepo.GetByIdAsync(attempt.TestId, includeQuestions: true)!
-            ?? throw new KeyNotFoundException("Test not found.");
+        var test = await _testRepo.GetByIdAsync(attempt.TestId, true)
+                   ?? throw new KeyNotFoundException("Test not found.");
 
         var questionResults = test.Questions.Select(q =>
         {
             var userAnswersForQuestion = attempt.UserAnswers
                 .Where(ua => ua.QuestionId == q.Id).ToList();
 
-            bool isCorrect = userAnswersForQuestion.Any(ua => ua.IsCorrect);
-            decimal pointsEarned = isCorrect ? q.Points : 0;
+            var isCorrect = userAnswersForQuestion.Any(ua => ua.IsCorrect);
+            var pointsEarned = isCorrect ? q.Points : 0;
 
             if (q.QuestionType == QuestionType.MultipleChoice)
             {
                 var totalCorrect = q.Answers.Count(a => a.IsCorrect);
                 if (totalCorrect > 0)
                 {
-                    int correctSelected = userAnswersForQuestion.Count(ua => ua.IsCorrect);
-                    int wrongSelected = userAnswersForQuestion.Count(ua => !ua.IsCorrect
-                        && ua.SelectedAnswerId.HasValue);
-                    decimal ratio = Math.Max(0,
+                    var correctSelected = userAnswersForQuestion.Count(ua => ua.IsCorrect);
+                    var wrongSelected = userAnswersForQuestion.Count(ua => !ua.IsCorrect
+                                                                           && ua.SelectedAnswerId.HasValue);
+                    var ratio = Math.Max(0,
                         (decimal)(correctSelected - wrongSelected) / totalCorrect);
                     pointsEarned = Math.Round(ratio * q.Points, 2);
                     isCorrect = ratio == 1m;
@@ -182,16 +184,53 @@ public class TestAttemptService : ITestAttemptService
                 q.Id, q.Text, isCorrect, q.Points, pointsEarned, q.Explanation);
         }).ToList();
 
+        var totalPoints = test.Questions.Sum(q => q.Points);
+        var earnedPoints = questionResults.Sum(r => r.PointsEarned);
+        var score = totalPoints > 0
+            ? Math.Round(earnedPoints / totalPoints * 100, 2)
+            : 0;
+
+        var passed = score >= test.PassingScore;
+
+        attempt.Score = score;
+        await _attemptRepo.UpdateAsync(attempt);
+
         return new AttemptResultResponse(
-            attemptId, attempt.Score ?? 0, test.PassingScore,
-            attempt.Score >= test.PassingScore,
+            attemptId,
+            test.Id,
+            score,
+            test.PassingScore,
+            passed,
             test.Questions.Count,
             questionResults.Count(r => r.IsCorrect),
-            attempt.StartedAt, attempt.FinishedAt!.Value,
+            attempt.StartedAt,
+            attempt.FinishedAt!.Value,
             attempt.Status,
-            test.ShowCorrectAnswers ? questionResults : null);
+            test.ShowCorrectAnswers ? questionResults : null
+        );
     }
-    
+
+    public async Task<IEnumerable<AttemptResultResponse>> GetAttemptsByTestIdAsync(Guid testId)
+    {
+        var attempts = await _attemptRepo.GetByTestIdAsync(testId);
+
+        return attempts
+            .Where(a => a.Status == AttemptStatus.Completed)
+            .Select(a => new AttemptResultResponse(
+                a.Id,
+                a.TestId,
+                a.Score ?? 0,
+                0,
+                a.Score.HasValue && a.Score > 0,
+                0,
+                0,
+                a.StartedAt,
+                a.FinishedAt!.Value,
+                a.Status,
+                null
+            ));
+    }
+
     private static (bool isCorrect, decimal pointsEarned, List<UserAnswer> rows)
         EvaluateQuestion(Question question, SubmitAnswerRequest submitted, Guid attemptId)
     {
@@ -215,7 +254,7 @@ public class TestAttemptService : ITestAttemptService
     {
         var selectedId = submitted.SelectedAnswerIds?.FirstOrDefault();
         var selectedAnswer = question.Answers.FirstOrDefault(a => a.Id == selectedId);
-        bool isCorrect = selectedAnswer?.IsCorrect == true;
+        var isCorrect = selectedAnswer?.IsCorrect == true;
 
         return (isCorrect, isCorrect ? question.Points : 0, new List<UserAnswer>
         {
@@ -251,15 +290,15 @@ public class TestAttemptService : ITestAttemptService
             };
         }).ToList();
 
-        int correctSelected = rows.Count(r => r.IsCorrect);
-        int wrongSelected = rows.Count(r => !r.IsCorrect);
+        var correctSelected = rows.Count(r => r.IsCorrect);
+        var wrongSelected = rows.Count(r => !r.IsCorrect);
 
-        decimal ratio = totalCorrect > 0
+        var ratio = totalCorrect > 0
             ? Math.Max(0, (decimal)(correctSelected - wrongSelected) / totalCorrect)
             : 0;
 
-        decimal pointsEarned = Math.Round(ratio * question.Points, 2);
-        bool fullCredit = ratio == 1m;
+        var pointsEarned = Math.Round(ratio * question.Points, 2);
+        var fullCredit = ratio == 1m;
 
         return (fullCredit, pointsEarned, rows);
     }
@@ -268,7 +307,7 @@ public class TestAttemptService : ITestAttemptService
         Question question, SubmitAnswerRequest submitted, Guid attemptId)
     {
         var correctText = question.Answers.FirstOrDefault(a => a.IsCorrect)?.Text ?? "";
-        bool isCorrect = string.Equals(
+        var isCorrect = string.Equals(
             submitted.TextAnswer?.Trim(), correctText.Trim(),
             StringComparison.OrdinalIgnoreCase);
 
@@ -284,25 +323,5 @@ public class TestAttemptService : ITestAttemptService
                 AnsweredAt = DateTime.UtcNow
             }
         });
-    }
-    
-    public async Task<IEnumerable<AttemptResultResponse>> GetAttemptsByTestIdAsync(Guid testId)
-    {
-        var attempts = await _attemptRepo.GetByTestIdAsync(testId);
-
-        return attempts
-            .Where(a => a.Status == AttemptStatus.Completed)
-            .Select(a => new AttemptResultResponse(
-                a.Id,
-                a.Score ?? 0,
-                a.Test.PassingScore,
-                a.Score >= a.Test.PassingScore,
-                0,
-                0,
-                a.StartedAt,
-                a.FinishedAt!.Value,
-                a.Status,
-                null
-            ));
     }
 }

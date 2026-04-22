@@ -8,19 +8,29 @@ namespace Persistance.Repositories;
 public class UserRepository : IUserRepository
 {
     private readonly ApplicationDbContext _db;
-    public UserRepository(ApplicationDbContext db) => _db = db;
 
-    public async Task<User?> GetByIdAsync(Guid id) =>
-        await _db.Users.FindAsync(id);
+    public UserRepository(ApplicationDbContext db)
+    {
+        _db = db;
+    }
 
-    public async Task<User?> GetByEmailAsync(string email) =>
-        await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+    public async Task<User?> GetByIdAsync(Guid id)
+    {
+        return await _db.Users.FindAsync(id);
+    }
 
-    public async Task<IEnumerable<User>> GetAllAsync() =>
-        await _db.Users
+    public async Task<User?> GetByEmailAsync(string email)
+    {
+        return await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+    }
+
+    public async Task<IEnumerable<User>> GetAllAsync()
+    {
+        return await _db.Users
             .AsNoTracking()
             .OrderBy(u => u.LastName)
             .ToListAsync();
+    }
 
     public async Task UpdateAsync(User user)
     {

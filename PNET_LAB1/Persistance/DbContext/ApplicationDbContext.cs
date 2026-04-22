@@ -7,8 +7,10 @@ namespace Persistance.DbContext;
 
 public class ApplicationDbContext : Microsoft.EntityFrameworkCore.DbContext
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
- 
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
+    {
+    }
+
     public DbSet<User> Users { get; set; }
     public DbSet<Category> Categories { get; set; }
     public DbSet<Test> Tests { get; set; }
@@ -16,11 +18,11 @@ public class ApplicationDbContext : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<Answer> Answers { get; set; }
     public DbSet<TestAttempt> TestAttempts { get; set; }
     public DbSet<UserAnswer> UserAnswers { get; set; }
- 
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
- 
+
         modelBuilder.ApplyConfiguration(new UserConfiguration());
         modelBuilder.ApplyConfiguration(new CategoryConfiguration());
         modelBuilder.ApplyConfiguration(new TestConfiguration());
@@ -28,7 +30,7 @@ public class ApplicationDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new AnswerConfiguration());
         modelBuilder.ApplyConfiguration(new TestAttemptConfiguration());
         modelBuilder.ApplyConfiguration(new UserAnswerConfiguration());
-        
+
         modelBuilder.Entity<User>().HasData(new User
         {
             Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),

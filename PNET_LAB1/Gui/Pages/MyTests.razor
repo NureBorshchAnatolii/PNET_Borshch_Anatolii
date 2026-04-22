@@ -10,8 +10,8 @@
     <a href="/tests/create" class="btn btn-primary">➕ Create Test</a>
 </div>
 
-<LoadingSpinner Show="_loading" />
-<AlertMessage Message="@_error" Type="error" />
+<LoadingSpinner Show="_loading"/>
+<AlertMessage Message="@_error" Type="error"/>
 
 @if (!_loading)
 {
@@ -20,39 +20,39 @@
         <div class="card" style="padding:0; overflow:hidden">
             <table class="table">
                 <thead>
-                    <tr>
-                        <th>Title</th>
-                        <th>Category</th>
-                        <th>Questions</th>
-                        <th>Passing</th>
-                        <th>Created</th>
-                        <th></th>
-                    </tr>
+                <tr>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Questions</th>
+                    <th>Passing</th>
+                    <th>Created</th>
+                    <th></th>
+                </tr>
                 </thead>
                 <tbody>
-                    @foreach (var test in _tests)
-                    {
-                        <tr>
-                            <td>
-                                <a href="/tests/@test.Id" class="test-link">@test.Title</a>
-                            </td>
-                            <td><span class="badge badge-blue">@test.Category</span></td>
-                            <td>@test.QuestionCount</td>
-                            <td>@test.PassingScore%</td>
-                            <td style="color:#6c757d; font-size:.85rem">
-                                @test.CreatedAt.ToString("MMM d, yyyy")
-                            </td>
-                            <td>
-                                <div class="row-actions">
-                                    <a href="/tests/edit/@test.Id" class="btn btn-secondary btn-sm">Edit</a>
-                                    <button class="btn btn-danger btn-sm"
-                                            @onclick="() => ConfirmDelete(test)">
-                                        Delete
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    }
+                @foreach (var test in _tests)
+                {
+                    <tr>
+                        <td>
+                            <a href="/tests/@test.Id" class="test-link">@test.Title</a>
+                        </td>
+                        <td><span class="badge badge-blue">@test.Category</span></td>
+                        <td>@test.QuestionCount</td>
+                        <td>@test.PassingScore%</td>
+                        <td style="color:#6c757d; font-size:.85rem">
+                            @test.CreatedAt.ToString("MMM d, yyyy")
+                        </td>
+                        <td>
+                            <div class="row-actions">
+                                <a href="/tests/edit/@test.Id" class="btn btn-secondary btn-sm">Edit</a>
+                                <button class="btn btn-danger btn-sm"
+                                        @onclick="() => ConfirmDelete(test)">
+                                    Delete
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
                 </tbody>
             </table>
         </div>
@@ -72,7 +72,7 @@
         <div class="modal" @onclick:stopPropagation>
             <h3>Delete test?</h3>
             <p>Are you sure you want to delete <strong>@_deleteTarget.Title</strong>? This cannot be undone.</p>
-            <AlertMessage Message="@_deleteError" Type="error" />
+            <AlertMessage Message="@_deleteError" Type="error"/>
             <div class="modal-actions">
                 <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
                 <button class="btn btn-danger" @onclick="DeleteConfirmed" disabled="@_deleting">
@@ -90,7 +90,9 @@
         font-weight: 500;
     }
 
-    .test-link:hover { color: #0d6efd; }
+    .test-link:hover {
+        color: #0d6efd;
+    }
 
     .row-actions {
         display: flex;
@@ -101,7 +103,7 @@
     .modal-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,.35);
+        background: rgba(0, 0, 0, .35);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -116,8 +118,15 @@
         max-width: 420px;
     }
 
-    .modal h3 { margin: 0 0 .5rem; }
-    .modal p { color: #6c757d; font-size: .9rem; margin: 0 0 1.25rem; }
+    .modal h3 {
+        margin: 0 0 .5rem;
+    }
+
+    .modal p {
+        color: #6c757d;
+        font-size: .9rem;
+        margin: 0 0 1.25rem;
+    }
 
     .modal-actions {
         display: flex;
@@ -144,7 +153,7 @@
         _loading = true;
         try
         {
-            _tests = await Http.GetFromJsonAsync<List<TestResponse>>("/api/tests/my") ?? new();
+            _tests = await Http.GetFromJsonAsync<List<TestResponse>>("/api/tests/my") ?? new List<TestResponse>();
         }
         catch
         {
@@ -197,7 +206,15 @@
         }
     }
 
-    record TestResponse(Guid Id, string Title, string? Description, string Category,
-        int? TimeLimitMinutes, int? MaxAttempts, decimal PassingScore,
-        int QuestionCount, DateTime CreatedAt);
+    record TestResponse(
+        Guid Id,
+        string Title,
+        string? Description,
+        string Category,
+        int? TimeLimitMinutes,
+        int? MaxAttempts,
+        decimal PassingScore,
+        int QuestionCount,
+        DateTime CreatedAt);
+
 }

@@ -1,5 +1,6 @@
 ﻿@page "/register"
 @using System.ComponentModel.DataAnnotations
+@using System.Net
 @inject HttpClient Http
 @inject NavigationManager Nav
 
@@ -22,42 +23,42 @@
         }
 
         <EditForm Model="_model" OnValidSubmit="HandleRegister">
-            <DataAnnotationsValidator />
+            <DataAnnotationsValidator/>
 
             <div class="field-row">
                 <div class="field">
                     <label>First name</label>
-                    <InputText @bind-Value="_model.FirstName" placeholder="John" />
-                    <ValidationMessage For="@(() => _model.FirstName)" />
+                    <InputText @bind-Value="_model.FirstName" placeholder="John"/>
+                    <ValidationMessage For="@(() => _model.FirstName)"/>
                 </div>
                 <div class="field">
                     <label>Last name</label>
-                    <InputText @bind-Value="_model.LastName" placeholder="Doe" />
-                    <ValidationMessage For="@(() => _model.LastName)" />
+                    <InputText @bind-Value="_model.LastName" placeholder="Doe"/>
+                    <ValidationMessage For="@(() => _model.LastName)"/>
                 </div>
             </div>
 
             <div class="field">
                 <label>Email</label>
-                <InputText @bind-Value="_model.Email" placeholder="you@example.com" type="email" />
-                <ValidationMessage For="@(() => _model.Email)" />
+                <InputText @bind-Value="_model.Email" placeholder="you@example.com" type="email"/>
+                <ValidationMessage For="@(() => _model.Email)"/>
             </div>
 
             <div class="field">
                 <label>Date of birth <span class="optional">(optional)</span></label>
-                <InputDate @bind-Value="_model.BirthDate" />
+                <InputDate @bind-Value="_model.BirthDate"/>
             </div>
 
             <div class="field">
                 <label>Password</label>
-                <InputText @bind-Value="_model.Password" placeholder="••••••••" type="password" />
-                <ValidationMessage For="@(() => _model.Password)" />
+                <InputText @bind-Value="_model.Password" placeholder="••••••••" type="password"/>
+                <ValidationMessage For="@(() => _model.Password)"/>
             </div>
 
             <div class="field">
                 <label>Confirm password</label>
-                <InputText @bind-Value="_model.ConfirmPassword" placeholder="••••••••" type="password" />
-                <ValidationMessage For="@(() => _model.ConfirmPassword)" />
+                <InputText @bind-Value="_model.ConfirmPassword" placeholder="••••••••" type="password"/>
+                <ValidationMessage For="@(() => _model.ConfirmPassword)"/>
             </div>
 
             <button type="submit" disabled="@_isLoading">
@@ -236,7 +237,7 @@
                 await Task.Delay(1500);
                 Nav.NavigateTo("/login");
             }
-            else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            else if (response.StatusCode == HttpStatusCode.Conflict)
             {
                 _errorMessage = "An account with this email already exists.";
             }
@@ -277,4 +278,5 @@
         [Compare(nameof(Password), ErrorMessage = "Passwords do not match")]
         public string ConfirmPassword { get; set; } = string.Empty;
     }
+
 }

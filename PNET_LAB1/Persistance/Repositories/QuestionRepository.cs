@@ -8,7 +8,11 @@ namespace Persistance.Repositories;
 public class QuestionRepository : IQuestionRepository
 {
     private readonly ApplicationDbContext _db;
-    public QuestionRepository(ApplicationDbContext db) => _db = db;
+
+    public QuestionRepository(ApplicationDbContext db)
+    {
+        _db = db;
+    }
 
     public async Task<Question?> GetByIdAsync(Guid id, bool includeAnswers = false)
     {
@@ -20,13 +24,15 @@ public class QuestionRepository : IQuestionRepository
         return await query.FirstOrDefaultAsync(q => q.Id == id);
     }
 
-    public async Task<IEnumerable<Question>> GetByTestIdAsync(Guid testId) =>
-        await _db.Questions
+    public async Task<IEnumerable<Question>> GetByTestIdAsync(Guid testId)
+    {
+        return await _db.Questions
             .Where(q => q.TestId == testId)
             .Include(q => q.Answers)
             .OrderBy(q => q.Order)
             .AsNoTracking()
             .ToListAsync();
+    }
 
     public async Task AddAsync(Question question)
     {

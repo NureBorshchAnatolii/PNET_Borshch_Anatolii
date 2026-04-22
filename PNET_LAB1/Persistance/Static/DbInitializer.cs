@@ -9,8 +9,9 @@ public static class DbInitializer
     {
         await db.Database.ExecuteSqlRawAsync(Scripts.GetUserPassRate);
         await db.Database.ExecuteSqlRawAsync(Scripts.GetTestLeaderboard);
+        await db.Database.ExecuteSqlRawAsync(Scripts.CreateGetTestLeaderboard);
         await db.Database.ExecuteSqlRawAsync(Scripts.PreventTestDeleteWithAttempts);
-        await db.Database.ExecuteSqlRawAsync(Scripts.FlagUnderperformingTests);
+        await db.Database.ExecuteSqlRawAsync(Scripts.CleanupOldAttempts);
         await db.Database.ExecuteSqlRawAsync(Scripts.RecalculateScoreAfterAnswer);
     }
 }

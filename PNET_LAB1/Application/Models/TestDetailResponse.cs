@@ -11,6 +11,6 @@ public record TestDetailResponse(
     bool ShowCorrectAnswers,
     decimal PassingScore,
     DateTime CreatedAt,
-    Guid CreatedByUserId, 
+    Guid CreatedByUserId,
     List<QuestionResponse> Questions
 );

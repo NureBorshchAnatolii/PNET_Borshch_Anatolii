@@ -11,7 +11,7 @@
 
 <div class="filter-bar">
     <input class="search-input" placeholder="Search by title..."
-           @bind="_search" @bind:event="oninput" />
+           @bind="_search" @bind:event="oninput"/>
 
     <select @bind="_selectedCategory">
         <option value="">All Categories</option>
@@ -20,10 +20,10 @@
             <option value="@cat.Id">@cat.Name</option>
         }
     </select>
-    
+
 </div>
 
-<LoadingSpinner Show="_loading" />
+<LoadingSpinner Show="_loading"/>
 
 @if (!_loading)
 {
@@ -82,7 +82,9 @@
         outline: none;
     }
 
-    .search-input:focus { border-color: #0d6efd; }
+    .search-input:focus {
+        border-color: #0d6efd;
+    }
 
     .filter-bar select {
         border: 1px solid #ced4da;
@@ -110,7 +112,7 @@
     }
 
     .test-card:hover {
-        box-shadow: 0 2px 12px rgba(0,0,0,.08);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, .08);
         border-color: #0d6efd;
     }
 
@@ -168,14 +170,23 @@
         var catsTask = Http.GetFromJsonAsync<List<CategoryResponse>>("/api/categories");
         await Task.WhenAll(testsTask, catsTask);
 
-        _tests = testsTask.Result ?? new();
-        _categories = catsTask.Result ?? new();
+        _tests = testsTask.Result ?? new List<TestResponse>();
+        _categories = catsTask.Result ?? new List<CategoryResponse>();
         _loading = false;
     }
 
-    record TestResponse(Guid Id, string Title, string? Description, string Category,
-        Guid CategoryId, int? TimeLimitMinutes, int? MaxAttempts,
-        decimal PassingScore, int QuestionCount, DateTime CreatedAt);
+    record TestResponse(
+        Guid Id,
+        string Title,
+        string? Description,
+        string Category,
+        Guid CategoryId,
+        int? TimeLimitMinutes,
+        int? MaxAttempts,
+        decimal PassingScore,
+        int QuestionCount,
+        DateTime CreatedAt);
 
     record CategoryResponse(Guid Id, string Name, int TestCount);
+
 }

@@ -12,17 +12,18 @@
     <AuthorizeView>
         <Authorized>
             <ul class="nav-links">
-                <li><NavLink href="/tests" Match="NavLinkMatch.Prefix">🏠 All Tests</NavLink></li>
-                <li><NavLink href="/tests/my">📋 My Tests</NavLink></li>
-                <li><NavLink href="/tests/create">➕ Create Test</NavLink></li>
-                <li><NavLink href="/attempts/my">📊 My Attempts</NavLink></li>
+                <li><NavLink href="/tests" Match="NavLinkMatch.Prefix">All Tests</NavLink></li>
+                <li><NavLink href="/tests/my">My Tests</NavLink></li>
+                <li><NavLink href="/tests/create">Create Test</NavLink></li>
+                <li><NavLink href="/attempts/my">My Attempts</NavLink></li>
             </ul>
 
             <AuthorizeView Roles="Admin" Context="adminAuth">
                 <div class="nav-section-title">Admin</div>
                 <ul class="nav-links">
-                    <li><NavLink href="/admin/users">👥 Users</NavLink></li>
-                    <li><NavLink href="/admin/categories">🏷 Categories</NavLink></li>
+                    <li><NavLink href="/admin/users">Users</NavLink></li>
+                    <li><NavLink href="/admin/categories">Categories</NavLink></li>
+                    <li><NavLink href="/admin/logs">Live Logs</NavLink></li>
                 </ul>
             </AuthorizeView>
 

@@ -9,7 +9,10 @@ public class ReportService : IReportService
 {
     private readonly ApplicationDbContext _db;
 
-    public ReportService(ApplicationDbContext db) => _db = db;
+    public ReportService(ApplicationDbContext db)
+    {
+        _db = db;
+    }
 
     public async Task<PassRateResponse> GetUserPassRateAsync(Guid userId)
     {
@@ -31,7 +34,7 @@ public class ReportService : IReportService
             .SqlQueryRaw<TestReportResponse>("EXEC FlagUnderperformingTests")
             .ToListAsync();
     }
-    
+
     public async Task<IEnumerable<LeaderboardEntry>> GetTestLeaderboardAsync(Guid testId)
     {
         var exists = await _db.Tests.AnyAsync(t => t.Id == testId);

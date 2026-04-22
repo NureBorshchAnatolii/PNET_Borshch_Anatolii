@@ -6,8 +6,8 @@
 
 <PageTitle>@(_test?.Title ?? "Test")</PageTitle>
 
-<LoadingSpinner Show="_loading" />
-<AlertMessage Message="@_error" Type="error" />
+<LoadingSpinner Show="_loading"/>
+<AlertMessage Message="@_error" Type="error"/>
 
 @if (_test is not null)
 {
@@ -91,7 +91,9 @@
         margin-bottom: .35rem;
     }
 
-    .back-link:hover { color: #0d6efd; }
+    .back-link:hover {
+        color: #0d6efd;
+    }
 
     .detail-layout {
         display: grid;
@@ -110,15 +112,22 @@
         color: #6c757d;
     }
 
-    .detail-row:last-child { border-bottom: none; }
-    .detail-row strong { color: #212529; }
+    .detail-row:last-child {
+        border-bottom: none;
+    }
+
+    .detail-row strong {
+        color: #212529;
+    }
 
     .question-preview {
         padding: .65rem 0;
         border-bottom: 1px solid #f1f3f5;
     }
 
-    .question-preview:last-child { border-bottom: none; }
+    .question-preview:last-child {
+        border-bottom: none;
+    }
 
     .question-preview-header {
         display: flex;
@@ -201,15 +210,33 @@
         }
     }
 
-    record TestDetailResponse(Guid Id, string Title, string? Description, string Category,
-        int? TimeLimitMinutes, int? MaxAttempts, bool ShuffleQuestions,
-        bool ShowCorrectAnswers, decimal PassingScore, DateTime CreatedAt,
-        Guid CreatedByUserId, List<QuestionResponse> Questions);
+    record TestDetailResponse(
+        Guid Id,
+        string Title,
+        string? Description,
+        string Category,
+        int? TimeLimitMinutes,
+        int? MaxAttempts,
+        bool ShuffleQuestions,
+        bool ShowCorrectAnswers,
+        decimal PassingScore,
+        DateTime CreatedAt,
+        Guid CreatedByUserId,
+        List<QuestionResponse> Questions);
 
-    record QuestionResponse(Guid Id, string Text, string QuestionType,
-        decimal Points, int Order, string? Explanation, List<AnswerResponse> Answers);
+    record QuestionResponse(
+        Guid Id,
+        string Text,
+        string QuestionType,
+        decimal Points,
+        int Order,
+        string? Explanation,
+        List<AnswerResponse> Answers);
 
     record AnswerResponse(Guid Id, string Text, int Order, bool? IsCorrect);
+
     record StartAttemptResponse(Guid AttemptId);
+
     record ErrorResponse(string Message);
+
 }

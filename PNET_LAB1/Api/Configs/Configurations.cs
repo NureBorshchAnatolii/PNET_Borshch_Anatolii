@@ -13,7 +13,7 @@ public static class Configurations
         var jwtSection = configuration.GetSection("JwtSettings");
         services.Configure<JwtSettings>(jwtSection);
         var jwtSettings = jwtSection.Get<JwtSettings>()!;
- 
+
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
@@ -29,8 +29,23 @@ public static class Configurations
                     IssuerSigningKey = new SymmetricSecurityKey(
                         Encoding.UTF8.GetBytes(jwtSettings.Secret))
                 };
+
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+                        var path = context.HttpContext.Request.Path;
+
+                        if (!string.IsNullOrEmpty(accessToken) &&
+                            path.StartsWithSegments("/hubs/logs"))
+                            context.Token = accessToken;
+
+                        return Task.CompletedTask;
+                    }
+                };
             });
-        
+
         return services;
     }
 
@@ -65,7 +80,7 @@ public static class Configurations
                 }
             });
         });
-        
+
         return services;
     }
 
@@ -77,10 +92,11 @@ public static class Configurations
             {
                 policy.WithOrigins("https://localhost:8082", "http://localhost:8081")
                     .AllowAnyHeader()
-                    .AllowAnyMethod();
+                    .AllowAnyMethod()
+                    .AllowCredentials();
             });
         });
-        
+
         return services;
     }
 }

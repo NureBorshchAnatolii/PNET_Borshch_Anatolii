@@ -1,5 +1,4 @@
 ﻿@page "/attempts/my"
-@using Gui.Shared
 @inject HttpClient Http
 @inject NavigationManager Nav
 
@@ -9,77 +8,214 @@
     <h2>My Attempts</h2>
 </div>
 
-<LoadingSpinner Show="_loading" />
-<AlertMessage Message="@_error" Type="error" />
-
-@if (!_loading)
+@if (_loading)
 {
-    @if (_attempts.Any())
-    {
-        <div class="card" style="padding:0; overflow:hidden">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Test</th>
-                        <th>Score</th>
-                        <th>Status</th>
-                        <th>Attempt #</th>
-                        <th>Date</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var a in _attempts)
-                    {
-                        <tr>
-                            <td style="font-weight:500">@a.Test?.Title</td>
-                            <td>
-                                @if (a.Score.HasValue)
-                                {
-                                    <span class="@(a.Score >= a.Test?.PassingScore
-                                        ? "badge badge-green" : "badge badge-red")">
-                                        @Math.Round(a.Score.Value)%
-                                    </span>
-                                }
-                                else
-                                {
-                                    <span class="badge badge-gray">—</span>
-                                }
-                            </td>
-                            <td>
-                                <span class="badge @GetStatusBadge(a.Status)">@a.Status</span>
-                            </td>
-                            <td style="color:#6c757d">#@a.AttemptNumber</td>
-                            <td style="color:#6c757d; font-size:.85rem">
-                                @a.StartedAt.ToString("MMM d, yyyy HH:mm")
-                            </td>
-                            <td>
-                                @if (a.Status == "Completed")
-                                {
-                                    var resultUrl = $"/attempt/{a.Id}/result";
-                                    <button class="btn btn-secondary btn-sm"
-                                            @onclick="() => Nav.NavigateTo(resultUrl)">
-                                        View Result
-                                    </button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    }
-    else
-    {
-        <div class="empty-state">
-            <p>You haven't taken any tests yet.</p>
-            <a href="/tests" class="btn btn-primary">Browse Tests</a>
-        </div>
-    }
+    <p class="muted">Loading...</p>
+}
+else if (_error is not null)
+{
+    <p class="error-text">@_error</p>
+}
+else if (!_attempts.Any())
+{
+    <div class="empty">
+        <p>You haven't taken any tests yet.</p>
+        <button class="btn" @onclick='() => Nav.NavigateTo("/tests")'>Browse Tests</button>
+    </div>
+}
+else
+{
+    <div class="card">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>Test</th>
+                <th>Score</th>
+                <th>Status</th>
+                <th>Attempt</th>
+                <th>Date</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var a in _attempts)
+            {
+                <tr>
+                    <td class="td-title">@a.TestTitle</td>
+                    <td>
+                        @if (a.Score.HasValue)
+                        {
+                            <span class="badge @(a.Score >= a.PassingScore ? "badge-green" : "badge-red")">
+                                    @Math.Round(a.Score.Value)%
+                                </span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-gray">—</span>
+                        }
+                    </td>
+                    <td>
+                        <span class="badge @StatusBadge(a.Status)">@a.Status</span>
+                    </td>
+                    <td class="td-muted">#@a.AttemptNumber</td>
+                    <td class="td-muted td-date">@a.StartedAt.ToString("MMM d, yyyy HH:mm")</td>
+                    <td>
+                        @if (a.Status == "Completed")
+                        {
+                            var url = $"/attempt/{a.Id}/result";
+                            <button class="btn btn-sm btn-ghost"
+                                    @onclick="() => Nav.NavigateTo(url)">
+                                View Result
+                            </button>
+                        }
+                        else if (a.Status == "InProgress")
+                        {
+                            var url = $"/attempt/{a.Id}";
+                            <button class="btn btn-sm"
+                                    @onclick="() => Nav.NavigateTo(url)">
+                                Continue
+                            </button>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
 }
 
+<style>
+    .page-header {
+        margin-bottom: 1.25rem;
+    }
+
+    .page-header h2 {
+        margin: 0;
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #212529;
+    }
+
+    .card {
+        background: #fff;
+        border: 1.5px solid #e9ecef;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .9rem;
+    }
+
+    .table thead tr {
+        border-bottom: 1.5px solid #e9ecef;
+        background: #f8f9fa;
+    }
+
+    .table th {
+        padding: .75rem 1rem;
+        text-align: left;
+        font-size: .75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        color: #6c757d;
+    }
+
+    .table td {
+        padding: .75rem 1rem;
+        border-bottom: 1px solid #f1f3f5;
+        color: #212529;
+    }
+
+    .table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .table tbody tr:hover td {
+        background: #fafbfc;
+    }
+
+    .td-title {
+        font-weight: 500;
+    }
+
+    .td-muted {
+        color: #6c757d;
+    }
+
+    .td-date {
+        font-size: .82rem;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: .2rem .6rem;
+        border-radius: 20px;
+        font-size: .75rem;
+        font-weight: 600;
+    }
+
+    .badge-gray {
+        background: #e9ecef;
+        color: #495057;
+    }
+
+    .btn {
+        padding: .45rem 1rem;
+        border-radius: 7px;
+        border: 1.5px solid #0d6efd;
+        background: #0d6efd;
+        color: #fff;
+        font-size: .875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background .12s;
+    }
+
+    .btn:hover {
+        background: #0b5ed7;
+    }
+
+    .btn-sm {
+        padding: .3rem .75rem;
+        font-size: .8rem;
+    }
+
+    .btn-ghost {
+        background: transparent;
+        color: #495057;
+        border-color: #ced4da;
+    }
+
+    .btn-ghost:hover {
+        background: #f8f9fa;
+    }
+
+    .empty {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #6c757d;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .muted {
+        color: #6c757d;
+    }
+
+    .error-text {
+        color: #dc3545;
+        font-size: .875rem;
+    }
+</style>
+
 @code {
-    private List<AttemptResponse> _attempts = new();
+    private List<AttemptSummary> _attempts = new();
     private bool _loading = true;
     private string? _error;
 
@@ -87,12 +223,13 @@
     {
         try
         {
-            _attempts = await Http.GetFromJsonAsync<List<AttemptResponse>>(
-                "/api/attempts/my") ?? new();
+            _attempts = await Http.GetFromJsonAsync<List<AttemptSummary>>(
+                "/api/attempts/my") ?? new List<AttemptSummary>();
+            _attempts = _attempts.OrderByDescending(a => a.StartedAt).ToList();
         }
-        catch
+        catch (Exception ex)
         {
-            _error = "Failed to load attempts.";
+            _error = $"Failed to load attempts: {ex.Message}";
         }
         finally
         {
@@ -100,18 +237,27 @@
         }
     }
 
-    private static string GetStatusBadge(string status) => status switch
+    private static string StatusBadge(string status)
     {
-        "Completed" => "badge-green",
-        "InProgress" => "badge-blue",
-        "Abandoned" => "badge-gray",
-        "TimedOut" => "badge-red",
-        _ => "badge-gray"
-    };
+        return status switch
+        {
+            "Completed" => "badge-green",
+            "InProgress" => "badge-blue",
+            "TimedOut" => "badge-orange",
+            _ => "badge-gray"
+        };
+    }
 
-    record AttemptResponse(Guid Id, Guid TestId, DateTime StartedAt,
-        DateTime? FinishedAt, string Status, decimal? Score,
-        int AttemptNumber, TestSummary? Test);
+    record AttemptSummary(
+        Guid Id,
+        Guid TestId,
+        string TestTitle,
+        decimal PassingScore,
+        DateTime StartedAt,
+        DateTime? FinishedAt,
+        string Status,
+        decimal? Score,
+        int AttemptNumber
+    );
 
-    record TestSummary(Guid Id, string Title, decimal PassingScore);
 }

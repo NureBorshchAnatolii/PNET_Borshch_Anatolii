@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace Persistance.DbContext;
 
-public class ApplicationDbContextFactory 
+public class ApplicationDbContextFactory
     : IDesignTimeDbContextFactory<ApplicationDbContext>
 {
     public ApplicationDbContext CreateDbContext(string[] args)
@@ -13,7 +13,7 @@ public class ApplicationDbContextFactory
 
         var basePath = Directory.GetCurrentDirectory();
 
-        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") 
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
                           ?? "Production";
 
         Console.WriteLine($"Environment: {environment}");
@@ -23,8 +23,8 @@ public class ApplicationDbContextFactory
 
         var configuration = new ConfigurationBuilder()
             .SetBasePath(apiPath)
-            .AddJsonFile("appsettings.json", optional: false)
-            .AddJsonFile($"appsettings.{environment}.json", optional: true)
+            .AddJsonFile("appsettings.json", false)
+            .AddJsonFile($"appsettings.{environment}.json", true)
             .AddEnvironmentVariables()
             .Build();
 

@@ -1,6 +1,5 @@
 ﻿@page "/admin/users"
 @using Gui.Shared
-@using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "Admin")]
 @inject HttpClient Http
 
@@ -10,53 +9,53 @@
     <h2>Users</h2>
 </div>
 
-<LoadingSpinner Show="_loading" />
-<AlertMessage Message="@_error" Type="error" />
-<AlertMessage Message="@_success" Type="success" />
+<LoadingSpinner Show="_loading"/>
+<AlertMessage Message="@_error" Type="error"/>
+<AlertMessage Message="@_success" Type="success"/>
 
 @if (!_loading)
 {
     <div class="card" style="padding:0; overflow:hidden">
         <table class="table">
             <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Joined</th>
-                    <th></th>
-                </tr>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Joined</th>
+                <th></th>
+            </tr>
             </thead>
             <tbody>
-                @foreach (var user in _users)
-                {
-                    <tr>
-                        <td style="font-weight:500">@user.FirstName @user.LastName</td>
-                        <td style="color:#6c757d">@user.Email</td>
-                        <td>
+            @foreach (var user in _users)
+            {
+                <tr>
+                    <td style="font-weight:500">@user.FirstName @user.LastName</td>
+                    <td style="color:#6c757d">@user.Email</td>
+                    <td>
                             <span class="badge @(user.Role == "Admin" ? "badge-blue" : "badge-gray")">
                                 @user.Role
                             </span>
-                        </td>
-                        <td style="color:#6c757d; font-size:.85rem">
-                            @user.CreatedAt.ToString("MMM d, yyyy")
-                        </td>
-                        <td>
-                            <div class="row-actions">
-                                <select class="role-select"
-                                        value="@user.Role"
-                                        @onchange="e => ChangeRole(user.Id, e.Value?.ToString() ?? string.Empty)">
-                                    <option value="User">User</option>
-                                    <option value="Admin">Admin</option>
-                                </select>
-                                <button class="btn btn-danger btn-sm"
-                                        @onclick="() => ConfirmDelete(user)">
-                                    Delete
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                }
+                    </td>
+                    <td style="color:#6c757d; font-size:.85rem">
+                        @user.CreatedAt.ToString("MMM d, yyyy")
+                    </td>
+                    <td>
+                        <div class="row-actions">
+                            <select class="role-select"
+                                    value="@user.Role"
+                                    @onchange="e => ChangeRole(user.Id, e.Value?.ToString() ?? string.Empty)">
+                                <option value="User">User</option>
+                                <option value="Admin">Admin</option>
+                            </select>
+                            <button class="btn btn-danger btn-sm"
+                                    @onclick="() => ConfirmDelete(user)">
+                                Delete
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            }
             </tbody>
         </table>
     </div>
@@ -72,7 +71,7 @@
                 <strong>@_deleteTarget.FirstName @_deleteTarget.LastName</strong>?
                 This cannot be undone.
             </p>
-            <AlertMessage Message="@_deleteError" Type="error" />
+            <AlertMessage Message="@_deleteError" Type="error"/>
             <div class="modal-actions">
                 <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
                 <button class="btn btn-danger" @onclick="DeleteConfirmed"
@@ -102,12 +101,14 @@
         cursor: pointer;
     }
 
-    .role-select:focus { border-color: #0d6efd; }
+    .role-select:focus {
+        border-color: #0d6efd;
+    }
 
     .modal-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,.35);
+        background: rgba(0, 0, 0, .35);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -122,8 +123,15 @@
         max-width: 420px;
     }
 
-    .modal h3 { margin: 0 0 .5rem; }
-    .modal p { color: #6c757d; font-size: .9rem; margin: 0 0 1.25rem; }
+    .modal h3 {
+        margin: 0 0 .5rem;
+    }
+
+    .modal p {
+        color: #6c757d;
+        font-size: .9rem;
+        margin: 0 0 1.25rem;
+    }
 
     .modal-actions {
         display: flex;
@@ -141,7 +149,10 @@
     private bool _deleting;
     private string? _deleteError;
 
-    protected override async Task OnInitializedAsync() => await LoadUsers();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
 
     private async Task LoadUsers()
     {
@@ -149,7 +160,7 @@
         try
         {
             _users = await Http.GetFromJsonAsync<List<UserResponse>>(
-                "/api/admin/users") ?? new();
+                "/api/admin/users") ?? new List<UserResponse>();
         }
         catch
         {
@@ -233,6 +244,12 @@
         }
     }
 
-    record UserResponse(Guid Id, string FirstName, string LastName,
-        string Email, string Role, DateTime CreatedAt);
+    record UserResponse(
+        Guid Id,
+        string FirstName,
+        string LastName,
+        string Email,
+        string Role,
+        DateTime CreatedAt);
+
 }

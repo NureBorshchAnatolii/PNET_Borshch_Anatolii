@@ -8,17 +8,25 @@ namespace Persistance.Repositories;
 public class AnswerRepository : IAnswerRepository
 {
     private readonly ApplicationDbContext _db;
-    public AnswerRepository(ApplicationDbContext db) => _db = db;
 
-    public async Task<Answer?> GetByIdAsync(Guid id) =>
-        await _db.Answers.FindAsync(id);
+    public AnswerRepository(ApplicationDbContext db)
+    {
+        _db = db;
+    }
 
-    public async Task<IEnumerable<Answer>> GetByQuestionIdAsync(Guid questionId) =>
-        await _db.Answers
+    public async Task<Answer?> GetByIdAsync(Guid id)
+    {
+        return await _db.Answers.FindAsync(id);
+    }
+
+    public async Task<IEnumerable<Answer>> GetByQuestionIdAsync(Guid questionId)
+    {
+        return await _db.Answers
             .Where(a => a.QuestionId == questionId)
             .OrderBy(a => a.Order)
             .AsNoTracking()
             .ToListAsync();
+    }
 
     public async Task AddRangeAsync(IEnumerable<Answer> answers)
     {

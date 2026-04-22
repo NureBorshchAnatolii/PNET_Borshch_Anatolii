@@ -101,4 +101,17 @@ public sealed class AppAuthStateProvider : AuthenticationStateProvider
 
         return claims;
     }
+    
+    public async Task<string?> GetTokenAsync()
+    {
+        try
+        {
+            return await _localStorage.GetItemAsync(TokenKey);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
 }

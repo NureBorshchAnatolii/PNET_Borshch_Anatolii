@@ -7,6 +7,12 @@ public static class Scripts
         RETURNS DECIMAL(5,2)
         AS
         BEGIN
+            IF @userId IS NULL
+                RETURN -1.00
+
+            IF NOT EXISTS (SELECT 1 FROM Users WHERE Id = @userId)
+                RETURN -1.00
+
             DECLARE @total INT
             DECLARE @passed INT
             DECLARE @rate DECIMAL(5,2)
@@ -31,44 +37,72 @@ public static class Scripts
             RETURN @rate
         END";
 
-    
     public const string GetTestLeaderboard = @"
-        CREATE OR ALTER FUNCTION GetTestLeaderboard(@testId UNIQUEIDENTIFIER)
-        RETURNS TABLE
+        IF OBJECT_ID('dbo.GetTestLeaderboard', 'IF') IS NOT NULL
+            DROP FUNCTION dbo.GetTestLeaderboard
+        IF OBJECT_ID('dbo.GetTestLeaderboard', 'TF') IS NOT NULL
+            DROP FUNCTION dbo.GetTestLeaderboard";
+
+    public const string CreateGetTestLeaderboard = @"
+        CREATE FUNCTION GetTestLeaderboard(@testId UNIQUEIDENTIFIER)
+        RETURNS @Result TABLE (
+            Rank          BIGINT,
+            UserId        UNIQUEIDENTIFIER,
+            FullName      NVARCHAR(255),
+            Email         NVARCHAR(255),
+            Score         DECIMAL(5,2),
+            AttemptNumber INT,
+            StartedAt     DATETIME,
+            FinishedAt    DATETIME,
+            Passed        BIT
+        )
         AS
-        RETURN
-        (
+        BEGIN
+            IF @testId IS NULL
+                RETURN
+
+            IF NOT EXISTS (SELECT 1 FROM Tests WHERE Id = @testId)
+                RETURN
+
+            IF NOT EXISTS (
+                SELECT 1 FROM TestAttempts
+                WHERE TestId = @testId
+                AND Status = 'Completed'
+            )
+                RETURN
+
+            INSERT INTO @Result
             SELECT
-                ROW_NUMBER() OVER (ORDER BY ta.Score DESC) AS Rank,
-                u.Id AS UserId,
-                u.FirstName + ' ' + u.LastName AS FullName,
-                u.Email AS Email,
-                ta.Score AS Score,
-                ta.AttemptNumber AS AttemptNumber,
-                ta.StartedAt AS StartedAt,
-                ta.FinishedAt AS FinishedAt,
-                CASE
+                ROW_NUMBER() OVER (ORDER BY ta.Score DESC),
+                u.Id,
+                u.FirstName + ' ' + u.LastName,
+                u.Email,
+                ta.Score,
+                ta.AttemptNumber,
+                ta.StartedAt,
+                ta.FinishedAt,
+                CAST(CASE
                     WHEN ta.Score >= t.PassingScore THEN 1
                     ELSE 0
-                END AS Passed
+                END AS BIT)
             FROM TestAttempts ta
             JOIN Users u ON ta.UserId = u.Id
             JOIN Tests t ON ta.TestId = t.Id
             WHERE ta.TestId = @testId
             AND ta.Status = 'Completed'
-        )";
 
-    
+            RETURN
+        END";
+
+
     public const string RecalculateScoreAfterAnswer = @"
-        CREATE OR ALTER TRIGGER trg_RecalculateScoreAfterAnswer
+        CREATE OR ALTER TRIGGER RecalculateScoreAfterAnswer
         ON UserAnswers
         AFTER INSERT
         AS
         BEGIN
             SET NOCOUNT ON;
-
             DECLARE @attemptId UNIQUEIDENTIFIER
-
             DECLARE cur_attempts CURSOR FOR
                 SELECT DISTINCT AttemptId FROM inserted
 
@@ -80,7 +114,7 @@ public static class Scripts
                 DECLARE @totalPoints  DECIMAL(10,2)
                 DECLARE @earnedPoints DECIMAL(10,2)
                 DECLARE @scorePercent DECIMAL(5,2)
-                DECLARE @testId       UNIQUEIDENTIFIER
+                DECLARE @testId UNIQUEIDENTIFIER
 
                 SELECT @testId = TestId
                 FROM TestAttempts
@@ -148,70 +182,46 @@ public static class Scripts
             DELETE FROM Tests WHERE Id = @testId
         END";
 
-    public const string FlagUnderperformingTests = @"
-        CREATE OR ALTER PROCEDURE FlagUnderperformingTests
+    public const string CleanupOldAttempts = @"
+        CREATE OR ALTER PROCEDURE CleanupOldAttempts(@hours INT)
         AS
         BEGIN
             SET NOCOUNT ON;
 
-            CREATE TABLE #TestReport (
-                TestId UNIQUEIDENTIFIER,
-                Title NVARCHAR(255),
-                Category NVARCHAR(255),
-                PassingScore DECIMAL(5,2),
-                AvgScore DECIMAL(5,2),
-                AttemptCount INT,
-                Status NVARCHAR(50)
-            )
-
-            DECLARE @testId UNIQUEIDENTIFIER
-            DECLARE @title NVARCHAR(255)
-            DECLARE @passingScore DECIMAL(5,2)
-            DECLARE @categoryId UNIQUEIDENTIFIER
-
-            DECLARE cur_tests CURSOR FOR
-                SELECT Id, Title, PassingScore, CategoryId
-                FROM Tests
-                ORDER BY Title
-
-            OPEN cur_tests
-            FETCH NEXT FROM cur_tests INTO @testId, @title, @passingScore, @categoryId
-
-            WHILE @@FETCH_STATUS = 0
+            IF @hours IS NULL
             BEGIN
-                DECLARE @avgScore DECIMAL(5,2)
-                DECLARE @attemptCount INT
-                DECLARE @categoryName NVARCHAR(255)
-                DECLARE @flag NVARCHAR(50)
-
-                SELECT @categoryName = Name
-                FROM Categories
-                WHERE Id = @categoryId
-
-                SELECT
-                    @attemptCount = COUNT(*),
-                    @avgScore = ISNULL(AVG(Score), 0)
-                FROM TestAttempts
-                WHERE TestId = @testId
-                AND Status = 'Completed'
-
-                SET @flag = CASE
-                    WHEN @attemptCount = 0 THEN 'No Attempts'
-                    WHEN @avgScore < @passingScore THEN 'Underperforming'
-                    ELSE 'Healthy'
-                END
-
-                INSERT INTO #TestReport
-                VALUES (@testId, @title, @categoryName,
-                        @passingScore, @avgScore, @attemptCount, @flag)
-
-                FETCH NEXT FROM cur_tests INTO @testId, @title, @passingScore, @categoryId
+                RAISERROR('Parameter @hours cannot be null.', 16, 1)
+                RETURN
             END
 
-            CLOSE cur_tests
-            DEALLOCATE cur_tests
+            IF @hours <= 0
+            BEGIN
+                RAISERROR('Parameter @hours must be greater than 0.', 16, 1)
+                RETURN
+            END
 
-            SELECT * FROM #TestReport ORDER BY Status, AvgScore ASC
-            DROP TABLE #TestReport
+            DECLARE @cutoff  DATETIME = DATEADD(HOUR, -@hours, GETUTCDATE())
+            DECLARE @cleaned INT
+
+            IF NOT EXISTS (
+                SELECT 1 FROM TestAttempts
+                WHERE Status = 'InProgress'
+                AND StartedAt < @cutoff
+            )
+            BEGIN
+                SELECT 0 AS CleanedAttempts,
+                       'No stale attempts found.' AS Message
+                RETURN
+            END
+
+            UPDATE TestAttempts
+            SET
+                Status     = 'Abandoned',
+                FinishedAt = GETUTCDATE(),
+                Score      = 0
+            WHERE Status = 'InProgress'
+            AND StartedAt < @cutoff
+
+            SET @cleaned = @@ROWCOUNT
         END";
 }

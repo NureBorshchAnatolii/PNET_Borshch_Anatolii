@@ -11,7 +11,7 @@ public static class IdentityDependencyInjection
     {
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IAuthService, AuthService>();
-        
+
         return services;
     }
 }

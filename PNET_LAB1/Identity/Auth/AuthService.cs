@@ -11,9 +11,9 @@ namespace Identity.Auth;
 public class AuthService : IAuthService
 {
     private readonly ApplicationDbContext _db;
-    private readonly IJwtTokenGenerator _jwtTokenGenerator;
     private readonly JwtSettings _jwtSettings;
- 
+    private readonly IJwtTokenGenerator _jwtTokenGenerator;
+
     public AuthService(
         ApplicationDbContext db,
         IJwtTokenGenerator jwtTokenGenerator,
@@ -23,15 +23,15 @@ public class AuthService : IAuthService
         _jwtTokenGenerator = jwtTokenGenerator;
         _jwtSettings = jwtSettings.Value;
     }
- 
+
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
     {
         var emailTaken = await _db.Users
             .AnyAsync(u => u.Email == request.Email.ToLower(), ct);
- 
+
         if (emailTaken)
             throw new InvalidOperationException("Email is already in use.");
- 
+
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -43,36 +43,36 @@ public class AuthService : IAuthService
             CreateDate = DateTime.UtcNow,
             Role = UserRole.User
         };
- 
+
         _db.Users.Add(user);
         await _db.SaveChangesAsync(ct);
- 
+
         return BuildAuthResponse(user);
     }
- 
+
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct = default)
     {
         var user = await _db.Users
             .FirstOrDefaultAsync(u => u.Email == request.Email.ToLower(), ct);
- 
+
         if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedAccessException("Invalid email or password.");
- 
+
         return BuildAuthResponse(user);
     }
- 
+
     private AuthResponse BuildAuthResponse(User user)
     {
         var token = _jwtTokenGenerator.GenerateToken(user);
         var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpiryMinutes);
- 
+
         return new AuthResponse(
-            Token: token,
-            Email: user.Email,
-            FirstName: user.FirstName,
-            LastName: user.LastName,
-            Role: user.Role.ToString(),
-            ExpiresAt: expiresAt
+            token,
+            user.Email,
+            user.FirstName,
+            user.LastName,
+            user.Role.ToString(),
+            expiresAt
         );
     }
 }

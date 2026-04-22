@@ -1,0 +1,425 @@
+﻿@page "/admin/logs"
+@attribute [Authorize(Roles = "Admin")]
+@inject NavigationManager Nav
+@inject AppAuthStateProvider AuthStateProvider
+@inject IConfiguration Config
+@using Gui.Auth
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
+
+<PageTitle>Live Logs</PageTitle>
+
+<div class="logs-shell">
+
+    <div class="logs-topbar">
+        <div class="logs-title">
+            <h2>Live Logs</h2>
+            <span class="entry-count">@_logs.Count entries</span>
+        </div>
+        <div class="logs-controls">
+            <select class="filter-select" @bind="_levelFilter">
+                <option value="">All levels</option>
+                <option value="Information">Info</option>
+                <option value="Warning">Warning</option>
+                <option value="Error">Error</option>
+                <option value="Critical">Critical</option>
+            </select>
+            <button class="btn-pause @(_paused ? "btn-paused" : "")" @onclick="TogglePause">
+                @(_paused ? "▶ Resume" : "⏸ Pause")
+            </button>
+            <button class="btn-clear" @onclick="Clear">✕ Clear</button>
+            <div class="conn-indicator">
+                <span class="conn-dot @ConnDotClass"></span>
+                <span class="conn-label">@ConnLabel</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="console" @ref="_consoleRef">
+        @if (!FilteredLogs.Any())
+        {
+            <div class="console-empty">
+                <span>@(_connected ? "Waiting for logs..." : "Connecting...")</span>
+            </div>
+        }
+        else
+        {
+            @foreach (var e in FilteredLogs)
+            {
+                <div class="log-row @LevelClass(e.Level)">
+                    <span class="log-ts">@e.Timestamp</span>
+                    <span class="log-lvl">@ShortLevel(e.Level)</span>
+                    <span class="log-cat">@e.Category</span>
+                    <span class="log-msg">@e.Message</span>
+                    @if (e.Exception is not null)
+                    {
+                        <span class="log-ex"> › @e.Exception</span>
+                    }
+                </div>
+            }
+        }
+    </div>
+
+</div>
+
+<style>
+    .logs-shell {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 80px);
+    }
+
+    .logs-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: .75rem 0 .75rem;
+        border-bottom: 1px solid #e9ecef;
+        margin-bottom: .75rem;
+        flex-shrink: 0;
+        flex-wrap: wrap;
+        gap: .75rem;
+    }
+
+    .logs-title {
+        display: flex;
+        align-items: baseline;
+        gap: .75rem;
+    }
+
+    .logs-title h2 {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #212529;
+    }
+
+    .entry-count {
+        font-size: .78rem;
+        color: #6c757d;
+        background: #f1f3f5;
+        padding: .15rem .5rem;
+        border-radius: 20px;
+    }
+
+    .logs-controls {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        flex-wrap: wrap;
+    }
+
+    .filter-select {
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: .3rem .6rem;
+        font-size: .82rem;
+        color: #495057;
+        background: #fff;
+        outline: none;
+        cursor: pointer;
+    }
+
+    .btn-pause, .btn-clear {
+        padding: .3rem .75rem;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+        background: transparent;
+        font-size: .82rem;
+        color: #495057;
+        cursor: pointer;
+        transition: background .12s;
+    }
+
+    .btn-pause:hover, .btn-clear:hover {
+        background: #f8f9fa;
+    }
+
+    .btn-paused {
+        background: #fff3cd !important;
+        border-color: #ffc107 !important;
+        color: #664d03 !important;
+    }
+
+    .conn-indicator {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+    }
+
+    .conn-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .dot-connected {
+        background: #22c55e;
+        box-shadow: 0 0 5px #22c55e88;
+    }
+
+    .dot-connecting {
+        background: #f59e0b;
+    }
+
+    .dot-disconnected {
+        background: #ef4444;
+    }
+
+    .conn-label {
+        font-size: .78rem;
+        color: #6c757d;
+    }
+
+    .console {
+        flex: 1;
+        background: #0d1117;
+        border-radius: 10px;
+        padding: .75rem 1rem;
+        overflow-y: auto;
+        font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+        font-size: .8rem;
+        line-height: 1.7;
+        scrollbar-width: thin;
+        scrollbar-color: #30363d #0d1117;
+    }
+
+    .console-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #484f58;
+        font-style: italic;
+    }
+
+    .log-row {
+        display: grid;
+        grid-template-columns: 90px 46px 160px 1fr;
+        gap: .5rem;
+        padding: .15rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, .03);
+        align-items: baseline;
+    }
+
+    .log-ts {
+        color: #484f58;
+        font-size: .75rem;
+    }
+
+    .log-lvl {
+        font-weight: 700;
+        font-size: .72rem;
+        text-transform: uppercase;
+    }
+
+    .log-cat {
+        color: #8b949e;
+        font-size: .75rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .log-msg {
+        color: #c9d1d9;
+        word-break: break-word;
+    }
+
+    .log-ex {
+        color: #f85149;
+        font-size: .78rem;
+        grid-column: 4;
+    }
+
+    .lvl-info .log-lvl {
+        color: #388bfd;
+    }
+
+    .lvl-warn .log-lvl {
+        color: #d29922;
+    }
+
+    .lvl-error .log-lvl {
+        color: #f85149;
+    }
+
+    .lvl-error .log-msg {
+        color: #ffa198;
+    }
+
+    .lvl-crit .log-lvl {
+        color: #ff7b72;
+    }
+
+    .lvl-crit .log-msg {
+        color: #ff7b72;
+    }
+
+    .lvl-debug .log-lvl {
+        color: #3fb950;
+    }
+</style>
+
+@code {
+    private HubConnection? _hub;
+    private readonly List<LogEntry> _logs = new();
+    private bool _connected;
+    private bool _connecting = true;
+    private bool _paused;
+    private string _levelFilter = "";
+    private ElementReference _consoleRef;
+    private const int MaxLogs = 1000;
+
+    private IEnumerable<LogEntry> FilteredLogs => string.IsNullOrEmpty(_levelFilter)
+        ? _logs
+        : _logs.Where(l => l.Level == _levelFilter);
+
+    private string ConnDotClass => _connecting
+        ? "dot-connecting"
+        : _connected
+            ? "dot-connected"
+            : "dot-disconnected";
+
+    private string ConnLabel => _connecting
+        ? "Connecting..."
+        : _connected
+            ? "Connected"
+            : "Disconnected";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var hubUrl = new Uri("https://localhost:7051/hubs/logs");
+
+        _hub = new HubConnectionBuilder()
+            .WithUrl(hubUrl, options =>
+            {
+                options.AccessTokenProvider = async () =>
+                    await AuthStateProvider.GetTokenAsync();
+            })
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.On<LogEntryDto>("Log", entry =>
+        {
+            if (_paused) return;
+
+            var log = new LogEntry(
+                entry.Level,
+                entry.Category,
+                entry.Message,
+                entry.Timestamp.ToString("HH:mm:ss.fff"),
+                entry.Exception
+            );
+
+            if (_logs.Count >= MaxLogs)
+                _logs.RemoveAt(0);
+
+            _logs.Add(log);
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hub.On<string>("Info", msg =>
+        {
+            _logs.Add(new LogEntry("Information", "Hub", msg,
+                DateTime.UtcNow.ToString("HH:mm:ss.fff"), null));
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hub.Reconnecting += _ =>
+        {
+            _connected = false;
+            _connecting = true;
+            return InvokeAsync(StateHasChanged);
+        };
+
+        _hub.Reconnected += _ =>
+        {
+            _connected = true;
+            _connecting = false;
+            return InvokeAsync(StateHasChanged);
+        };
+
+        _hub.Closed += _ =>
+        {
+            _connected = false;
+            _connecting = false;
+            return InvokeAsync(StateHasChanged);
+        };
+
+        try
+        {
+            await _hub.StartAsync();
+            _connected = true;
+            _connecting = false;
+        }
+        catch
+        {
+            _connected = false;
+            _connecting = false;
+        }
+    }
+
+    private void TogglePause()
+    {
+        _paused = !_paused;
+    }
+
+    private void Clear()
+    {
+        _logs.Clear();
+    }
+
+    private static string LevelClass(string level)
+    {
+        return level switch
+        {
+            "Information" => "lvl-info",
+            "Warning" => "lvl-warn",
+            "Error" => "lvl-error",
+            "Critical" => "lvl-crit",
+            "Debug" => "lvl-debug",
+            _ => "lvl-info"
+        };
+    }
+
+    private static string ShortLevel(string level)
+    {
+        return level switch
+        {
+            "Information" => "INFO",
+            "Warning" => "WARN",
+            "Error" => "ERR ",
+            "Critical" => "CRIT",
+            "Debug" => "DBG ",
+            _ => level.Length >= 4 ? level[..4].ToUpper() : level.ToUpper()
+        };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+            await _hub.DisposeAsync();
+    }
+
+    record LogEntry(
+        string Level,
+        string Category,
+        string Message,
+        string Timestamp,
+        string? Exception
+    );
+
+    class LogEntryDto
+    {
+        public string Level { get; } = "";
+        public string Category { get; } = "";
+        public string Message { get; } = "";
+        public string? Exception { get; set; }
+        public DateTime Timestamp { get; set; }
+    }
+
+}

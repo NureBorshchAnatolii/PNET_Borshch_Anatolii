@@ -9,7 +9,7 @@ public class UserAnswer
     public string? TextAnswer { get; set; }
     public bool IsCorrect { get; set; }
     public DateTime AnsweredAt { get; set; }
- 
+
     public Question Question { get; set; } = null!;
     public TestAttempt Attempt { get; set; } = null!;
     public Answer? SelectedAnswer { get; set; }

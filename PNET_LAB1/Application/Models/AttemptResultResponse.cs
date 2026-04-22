@@ -4,6 +4,7 @@ namespace Application.Models;
 
 public record AttemptResultResponse(
     Guid AttemptId,
+    Guid TestId,
     decimal Score,
     decimal PassingScore,
     bool Passed,

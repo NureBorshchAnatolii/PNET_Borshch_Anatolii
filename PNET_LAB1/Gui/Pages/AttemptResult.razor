@@ -1,122 +1,177 @@
 ﻿@page "/attempt/{AttemptId:guid}/result"
-@using Gui.Shared
+@using System.Net
 @inject HttpClient Http
 @inject NavigationManager Nav
 
 <PageTitle>Result</PageTitle>
 
-<LoadingSpinner Show="_loading" />
-<AlertMessage Message="@_error" Type="error" />
-
-@if (_result is not null)
+@if (_loading)
 {
-    <div class="result-layout">
-        <!-- Score card -->
-        <div class="card score-card">
-            <div class="score-circle @(_result.Passed ? "score-pass" : "score-fail")">
-                <span class="score-number">@Math.Round(_result.Score)%</span>
-                <span class="score-label">@(_result.Passed ? "PASSED" : "FAILED")</span>
+    <div class="centered"><p class="muted">Loading result...</p></div>
+}
+else if (_error is not null)
+{
+    <div class="centered">
+        <p class="error-text">@_error</p>
+        <button class="btn" @onclick='() => Nav.NavigateTo("/attempts/my")'>My Attempts</button>
+    </div>
+}
+else if (_result is not null)
+{
+    <div class="result-shell">
+        <div class="score-card @(_result.Passed ? "card-pass" : "card-fail")">
+            <div class="score-main">
+                <span class="score-number">@Math.Round(_result.Score, 1)%</span>
+                <span class="score-verdict">@(_result.Passed ? "PASSED" : "FAILED")</span>
             </div>
-
+            <div class="score-divider"></div>
             <div class="score-stats">
                 <div class="stat">
-                    <span class="stat-value">@_result.CorrectAnswers / @_result.TotalQuestions</span>
-                    <span class="stat-label">Correct</span>
+                    <span class="stat-val">@_result.CorrectAnswers / @_result.TotalQuestions</span>
+                    <span class="stat-lbl">Correct</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-value">@_result.PassingScore%</span>
-                    <span class="stat-label">Required</span>
+                    <span class="stat-val">@_result.PassingScore%</span>
+                    <span class="stat-lbl">Required</span>
                 </div>
+                @if (_result.FinishedAt.HasValue)
+                {
+                    <div class="stat">
+                        <span class="stat-val">@FormatDuration(_result.StartedAt, _result.FinishedAt.Value)</span>
+                        <span class="stat-lbl">Duration</span>
+                    </div>
+                }
                 <div class="stat">
-                    <span class="stat-value">@FormatDuration(_result.StartedAt, _result.FinishedAt)</span>
-                    <span class="stat-label">Duration</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-value @(_result.Passed ? "text-green" : "text-red")">
-                        @_result.Status
-                    </span>
-                    <span class="stat-label">Status</span>
+                    <span class="stat-val">@_result.Status</span>
+                    <span class="stat-lbl">Status</span>
                 </div>
             </div>
         </div>
 
-        @if (_result.QuestionResults is not null)
+        @if (_result.QuestionResults is { Count: > 0 })
         {
-            <div class="card">
-                <h4 style="margin: 0 0 1rem">Question Breakdown</h4>
-                @foreach (var (q, i) in _result.QuestionResults.Select((q, i) => (q, i)))
+            <div class="breakdown">
+                <h4 class="section-title">Question Breakdown</h4>
+                @foreach (var q in _result.QuestionResults)
                 {
-                    <div class="result-question @(q.IsCorrect ? "result-correct" : "result-wrong")">
-                        <div class="result-question-header">
-                            <span class="result-icon">@(q.IsCorrect ? "✓" : "✗")</span>
-                            <span class="result-question-text">@q.QuestionText</span>
-                            <span class="result-points">
-                                @q.PointsEarned / @q.Points pts
-                            </span>
+                    <div class="q-row @(q.IsCorrect ? "q-correct" : "q-wrong")">
+                        <span class="q-icon">@(q.IsCorrect ? "✓" : "✗")</span>
+                        <div class="q-body">
+                            <span class="q-text">@q.QuestionText</span>
+                            @if (!string.IsNullOrWhiteSpace(q.Explanation))
+                            {
+                                <span class="q-explanation">@q.Explanation</span>
+                            }
                         </div>
-                        @if (!string.IsNullOrEmpty(q.Explanation))
-                        {
-                            <p class="result-explanation">@q.Explanation</p>
-                        }
+                        <span class="q-pts">@q.PointsEarned / @q.Points pts</span>
                     </div>
                 }
             </div>
         }
         else
         {
-            <div class="card">
-                <p style="color:#6c757d; margin:0; font-size:.9rem">
+            <div class="breakdown">
+                <p class="muted" style="margin:0; font-size:.9rem">
                     Correct answers are not shown for this test.
                 </p>
             </div>
         }
 
-        <!-- Actions -->
-        <div class="result-actions">
-            <button class="btn btn-secondary" @onclick='() => Nav.NavigateTo("/tests")'>
-                Browse Tests
-            </button>
-            <button class="btn btn-secondary" @onclick='() => Nav.NavigateTo("/attempts/my")'>
+        <div class="actions">
+            <button class="btn btn-ghost" @onclick='() => Nav.NavigateTo("/attempts/my")'>
                 My Attempts
             </button>
-            <button class="btn btn-primary"
-                    @onclick='() => Nav.NavigateTo($"/tests/{_result.TestId}")'>
+            @{
+                var testUrl = $"/tests/{_result.TestId}";
+            }
+            <button class="btn btn-ghost" @onclick="() => Nav.NavigateTo(testUrl)">
                 Try Again
             </button>
+            <button class="btn" @onclick='() => Nav.NavigateTo("/tests")'>
+                Browse Tests
+            </button>
         </div>
+
     </div>
 }
 
 <style>
-    .result-layout { max-width: 680px; margin: 0 auto; }
-
-    .score-card {
-        display: flex;
-        align-items: center;
-        gap: 2rem;
-        margin-bottom: 1.25rem;
-    }
-
-    .score-circle {
-        width: 120px;
-        height: 120px;
-        border-radius: 50%;
+    .centered {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        flex-shrink: 0;
-        border: 6px solid;
+        min-height: 60vh;
+        gap: 1rem;
     }
 
-    .score-number { font-size: 1.6rem; font-weight: 700; line-height: 1; }
-    .score-label { font-size: .65rem; font-weight: 700; letter-spacing: .08em; margin-top: .2rem; }
+    .result-shell {
+        max-width: 660px;
+        margin: 0 auto;
+        padding-bottom: 3rem;
+    }
+
+    .score-card {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 1.25rem;
+        border: 1.5px solid;
+    }
+
+    .score-main {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 1.75rem 2rem;
+        min-width: 140px;
+    }
+
+    .card-pass .score-main {
+        background: #d1e7dd;
+    }
+
+    .card-fail .score-main {
+        background: #f8d7da;
+    }
+
+    .score-number {
+        font-size: 2.2rem;
+        font-weight: 700;
+        line-height: 1;
+        color: #212529;
+    }
+
+    .score-verdict {
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        margin-top: .35rem;
+        color: #495057;
+    }
+
+    .score-divider {
+        width: 1px;
+        align-self: stretch;
+    }
+
+    .card-pass .score-divider {
+        background: #a3cfbb;
+    }
+
+    .card-fail .score-divider {
+        background: #f5c2c7;
+    }
 
     .score-stats {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
+        display: flex;
+        gap: 2rem;
+        padding: 1.25rem 2rem;
         flex: 1;
+        flex-wrap: wrap;
     }
 
     .stat {
@@ -125,61 +180,130 @@
         gap: .2rem;
     }
 
-    .stat-value { font-size: 1.1rem; font-weight: 600; color: #212529; }
-    .stat-label { font-size: .78rem; color: #6c757d; }
-
-    .result-question {
-        padding: .85rem;
-        border-radius: 8px;
-        margin-bottom: .6rem;
-        border-left: 4px solid;
+    .stat-val {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #212529;
     }
 
-    .result-question-header {
+    .stat-lbl {
+        font-size: .78rem;
+        color: #6c757d;
+    }
+
+    .breakdown {
+        background: #fff;
+        border: 1.5px solid #e9ecef;
+        border-radius: 10px;
+        padding: 1.25rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .section-title {
+        margin: 0 0 1rem;
+        font-size: .95rem;
+        font-weight: 600;
+        color: #212529;
+    }
+
+    .q-row {
         display: flex;
-        align-items: center;
-        gap: .6rem;
+        align-items: flex-start;
+        gap: .75rem;
+        padding: .75rem;
+        border-radius: 7px;
+        margin-bottom: .4rem;
+        border-left: 3px solid;
     }
 
-    .result-icon {
+    .q-icon {
         font-weight: 700;
-        font-size: .9rem;
+        font-size: .95rem;
         flex-shrink: 0;
+        margin-top: .1rem;
     }
 
-    .result-correct .result-icon { color: #1a5c2a; }
-    .result-wrong .result-icon { color: #842029; }
+    .q-correct .q-icon {
+        color: #198754;
+    }
 
-    .result-question-text {
+    .q-wrong .q-icon {
+        color: #dc3545;
+    }
+
+    .q-body {
         flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+    }
+
+    .q-text {
         font-size: .9rem;
         color: #212529;
     }
 
-    .result-points {
+    .q-explanation {
+        font-size: .8rem;
+        color: #6c757d;
+        font-style: italic;
+    }
+
+    .q-pts {
         font-size: .8rem;
         color: #6c757d;
         flex-shrink: 0;
+        margin-top: .1rem;
     }
 
-    .result-explanation {
-        margin: .5rem 0 0 1.4rem;
-        font-size: .82rem;
-        color: #495057;
-    }
-
-    .result-actions {
+    .actions {
         display: flex;
         justify-content: flex-end;
         gap: .6rem;
-        margin-top: .5rem;
+    }
+
+    .btn {
+        padding: .5rem 1.25rem;
+        border-radius: 7px;
+        border: 1.5px solid #0d6efd;
+        background: #0d6efd;
+        color: #fff;
+        font-size: .9rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background .12s;
+    }
+
+    .btn:hover {
+        background: #0b5ed7;
+        border-color: #0b5ed7;
+    }
+
+    .btn-ghost {
+        background: transparent;
+        color: #495057;
+        border-color: #ced4da;
+    }
+
+    .btn-ghost:hover {
+        background: #f8f9fa;
+        border-color: #adb5bd;
+    }
+
+    .muted {
+        color: #6c757d;
+    }
+
+    .error-text {
+        color: #dc3545;
+        font-size: .875rem;
     }
 </style>
 
 @code {
     [Parameter] public Guid AttemptId { get; set; }
 
-    private AttemptResultResponse? _result;
+    private ResultResponse? _result;
     private bool _loading = true;
     private string? _error;
 
@@ -187,12 +311,28 @@
     {
         try
         {
-            _result = await Http.GetFromJsonAsync<AttemptResultResponse>(
-                $"/api/attempts/{AttemptId}/result");
+            var response = await Http.GetAsync($"/api/attempts/{AttemptId}/result");
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                _error = "Result not found. The attempt may still be in progress.";
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = $"Failed to load result ({(int)response.StatusCode}).";
+                return;
+            }
+
+            _result = await response.Content.ReadFromJsonAsync<ResultResponse>();
+
+            if (_result is null)
+                _error = "Result not found.";
         }
-        catch
+        catch (Exception ex)
         {
-            _error = "Failed to load result.";
+            _error = $"Failed to load result: {ex.Message}";
         }
         finally
         {
@@ -202,18 +342,33 @@
 
     private static string FormatDuration(DateTime start, DateTime end)
     {
-        var duration = end - start;
-        return duration.TotalHours >= 1
-            ? $"{(int)duration.TotalHours}h {duration.Minutes}m"
-            : $"{duration.Minutes}m {duration.Seconds}s";
+        var d = end - start;
+        return d.TotalHours >= 1
+            ? $"{(int)d.TotalHours}h {d.Minutes}m"
+            : $"{d.Minutes}m {d.Seconds}s";
     }
 
-    record AttemptResultResponse(
-        Guid AttemptId, Guid TestId, decimal Score, decimal PassingScore,
-        bool Passed, int TotalQuestions, int CorrectAnswers,
-        DateTime StartedAt, DateTime FinishedAt, string Status,
-        List<QuestionResultResponse>? QuestionResults);
+    record ResultResponse(
+        Guid AttemptId,
+        Guid TestId,
+        decimal Score,
+        decimal PassingScore,
+        bool Passed,
+        int TotalQuestions,
+        int CorrectAnswers,
+        DateTime StartedAt,
+        DateTime? FinishedAt,
+        string Status,
+        List<QuestionResultDto>? QuestionResults
+    );
 
-    record QuestionResultResponse(Guid QuestionId, string QuestionText,
-        bool IsCorrect, decimal Points, decimal PointsEarned, string? Explanation);
+    record QuestionResultDto(
+        Guid QuestionId,
+        string QuestionText,
+        bool IsCorrect,
+        decimal Points,
+        decimal PointsEarned,
+        string? Explanation
+    );
+
 }

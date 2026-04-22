@@ -12,7 +12,7 @@ public class User
     public DateTime CreateDate { get; set; }
     public DateTime? BirthDate { get; set; }
     public UserRole Role { get; set; } = UserRole.User;
- 
+
     public ICollection<Test> Tests { get; set; } = new List<Test>();
     public ICollection<TestAttempt> TestAttempts { get; set; } = new List<TestAttempt>();
 }

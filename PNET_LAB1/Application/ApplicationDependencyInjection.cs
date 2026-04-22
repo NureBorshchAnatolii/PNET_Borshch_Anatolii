@@ -12,7 +12,7 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ITestService, TestService>();
         services.AddScoped<ITestAttemptService, TestAttemptService>();
-        
+
         return services;
     }
 }
